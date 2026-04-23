@@ -1,5 +1,5 @@
 from flask import Flask, Response
-from picamera2 import Picamera2  # camera interface module for the raspberry pi
+from picamera2 import Picamera2  # type: ignore # camera interface module for the raspberry pi
 import cv2
 
 app = Flask(__name__)
