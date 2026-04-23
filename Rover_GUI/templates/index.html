@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mars Rover Control System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🔴</span>
+                <h1>MARS ROVER</h1>
+            </div>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-label">Battery:</span>
+                    <span class="status-value" id="battery">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Temp:</span>
+                    <span class="status-value" id="temperature">--</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Status:</span>
+                    <span class="status-value" id="connection-status">Connected</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel - Camera and Controls -->
+            <div class="left-panel">
+                <!-- Camera Feed -->
+                <div class="camera-container">
+                    <div class="camera-header">
+                        <span class="camera-title">📹 Live Feed</span>
+                        <span class="recording-indicator" id="recording-indicator"></span>
+                    </div>
+                    <div class="camera-feed">
+                        <img src="{{ url_for('video_feed') }}" alt="Camera Feed" id="video-stream">
+                        <div class="camera-overlay">
+                            <div class="crosshair"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Media Controls -->
+                <div class="media-controls">
+                    <button class="control-btn" id="capture-btn" title="Capture Image">
+                        📷 Capture
+                    </button>
+                    <button class="control-btn" id="record-btn" title="Record Video">
+                        ⏺️ Record
+                    </button>
+                    <button class="control-btn" id="center-camera-btn" title="Center Camera">
+                        🎯 Center
+                    </button>
+                </div>
+
+                <!-- Movement Controls Info -->
+                <div class="controls-info">
+                    <div class="control-section">
+                        <h3>Movement Controls</h3>
+                        <div class="control-grid">
+                            <div class="control-key">
+                                <kbd>W</kbd>
+                                <span>Forward</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>S</kbd>
+                                <span>Backward</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>A</kbd>
+                                <span>Left Turn</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>D</kbd>
+                                <span>Right Turn</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>Q</kbd>
+                                <span>Smooth Left</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>E</kbd>
+                                <span>Smooth Right</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="control-section">
+                        <h3>Camera Gimbal</h3>
+                        <div class="control-grid">
+                            <div class="control-key">
+                                <kbd>↑</kbd>
+                                <span>Tilt Up</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>↓</kbd>
+                                <span>Tilt Down</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>←</kbd>
+                                <span>Pan Left</span>
+                            </div>
+                            <div class="control-key">
+                                <kbd>→</kbd>
+                                <span>Pan Right</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Shell Terminal -->
+            <div class="right-panel">
+                <div class="terminal-container">
+                    <div class="terminal-header">
+                        <span class="terminal-title">💻 Command Terminal</span>
+                        <div class="terminal-controls">
+                            <button class="terminal-control-btn" id="clear-terminal">Clear</button>
+                        </div>
+                    </div>
+                    <div class="terminal-output" id="terminal-output">
+                        <div class="terminal-line">
+                            <span class="terminal-prompt">rover@marsbase:~$</span>
+                            <span class="terminal-text">System initialized. Ready for commands.</span>
+                        </div>
+                    </div>
+                    <div class="terminal-input-container">
+                        <span class="terminal-prompt">rover@marsbase:~$</span>
+                        <input type="text" class="terminal-input" id="terminal-input" placeholder="Enter command..." autocomplete="off">
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="activity-log">
+                    <div class="log-header">
+                        <span>📋 Activity Log</span>
+                    </div>
+                    <div class="log-content" id="activity-log">
+                        <div class="log-entry">System ready</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='control.js') }}"></script>
+</body>
+</html>
