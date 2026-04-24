@@ -1,3 +1,5 @@
+#Parses Frames from the Raspberry Pi camera
+
 from picamera2 import Picamera2  # type: ignore # camera interface module for the raspberry pi
 import cv2
 
