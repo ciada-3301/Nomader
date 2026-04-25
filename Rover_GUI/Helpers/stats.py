@@ -1,3 +1,14 @@
+# Helper to parse useful system stats from the Raspberry pi.
+
+"""
+Functions = system[get_cpu_temp,
+                   get_cpu_volts,
+                   get_ram_usage,
+                   get_cpu_usage,
+                   get_throttled_status
+                    ]
+"""
+
 import os
 import psutil
 import time

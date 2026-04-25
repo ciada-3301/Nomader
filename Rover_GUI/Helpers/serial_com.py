@@ -133,5 +133,19 @@ class Robot:
     class Gimbal:
         def __init__(self, robot):
             self.robot = robot
+        
+        def pan(self, angle):
+            self.pitch = angle
+            self.update()
+        
+        def tilt(self, angle):
+            self.yaw = angle
+            self.update()
+        
+        def reset(self):
+            self.yaw = 90
+            self.pitch = 90
+            self.update
+
 
 
