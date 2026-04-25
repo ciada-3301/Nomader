@@ -24,6 +24,13 @@ class system:
     @staticmethod
     def get_cpu_usage():
         return psutil.cpu_percent(interval=1)
+    
+    @staticmethod
+    def get_throttled_status():
+        # Returns the hex status; 0x0 means everything is fine.
+        # Common flags: 0x50005 (Currently under-voltage & throttled)
+        status = os.popen("vcgencmd get_throttled").readline()
+        return status.replace("throttled=", "").strip()
 
 
 
