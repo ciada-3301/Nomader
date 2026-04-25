@@ -12,9 +12,12 @@ import serial
 import time
 import sys
 
+def map_value(y, y_min, y_max, x_min, x_max):
+    return x_min + (y - y_min) * (x_max - x_min) / (y_max - y_min)
+
 class Robot:
     def __init__(self, port='/dev/ttyUSB0', baud_rate=115200, timeout=1):
-        self.motor = self.Motor(self)
+        
         try:
             self.serial = serial.Serial(port, baud_rate, timeout=timeout)
             time.sleep(2)  # Wait for Arduino to reset after serial connection
@@ -28,11 +31,8 @@ class Robot:
         except serial.SerialException as e:
             print(f"Error: Could not open serial port {port}")
             print(f"Details: {e}")
-            print("\nTry these ports:")
-            print("  /dev/ttyACM0")
-            print("  /dev/ttyACM1")
-            print("  /dev/ttyUSB0")
             sys.exit(1)
+        self.motor = self.Motor(self)
         self.left_speed = 0
         self.right_speed = 0
         self.pitch = 90
@@ -42,8 +42,8 @@ class Robot:
     def send_command(self, left_speed, right_speed, pitch, yaw, light):
         
         # Constrain values
-        left_speed = max(0, min(255, int(left_speed)))
-        right_speed = max(0, min(255, int(right_speed)))
+        left_speed = max(-255, min(255, int(left_speed)))
+        right_speed = max(-255, min(255, int(right_speed)))
         pitch = max(0, min(180, int(pitch)))
         yaw = max(0, min(180, int(yaw)))
         light = max(0, min(255, int(light)))
@@ -82,11 +82,10 @@ class Robot:
             self.serial.close()
             print("Connection closed")
     
-    class motor:
+    class Motor:
         def __init__(self, Robot):
             self.robot = Robot
-            self.motor = self.motor(self)
-        
+                    
         def forward(self,speed):
             self.robot.left_speed = speed
             self.robot.right_speed = speed
@@ -108,18 +107,22 @@ class Robot:
             self.robot.update()
 
         def arc_left(self, speed, bias):
-            self.robot.left_speed = speed - bias
-            self.robot.right_speed = speed
+            left_speed = map_value(bias,-1, 1, -speed, speed )
+            right_speed = speed
+            self.robot.left_speed = left_speed
+            self.robot.right_speed = right_speed
             self.robot.update()
         
-        def arc_right(self, speed, bias):
-            self.robot.left_speed = speed 
-            self.robot.right_speed = speed - bias
+        def arc_left(self, speed, bias):
+            right_speed = map_value(bias,-1, 1, -speed, speed )
+            left_speed = speed
+            self.robot.left_speed = left_speed
+            self.robot.right_speed = right_speed
             self.robot.update()
 
         def drive(self, right, left, turn_bias):
-            self.robot.left_speed = left*(1-turn_bias)
-            self.robot.right_speed = right*(1-turn_bias)
+            self.robot.left_speed = left
+            self.robot.right_speed = right
             self.robot.update()
 
 
