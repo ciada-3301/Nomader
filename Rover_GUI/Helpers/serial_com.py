@@ -33,6 +33,7 @@ class Robot:
             print(f"Details: {e}")
             sys.exit(1)
         self.motor = self.Motor(self)
+        self.gimbal = self.Gimbal(self)
         self.left_speed = 0
         self.right_speed = 0
         self.pitch = 90
@@ -129,6 +130,8 @@ class Robot:
             self.robot.right_speed = 0
             self.robot.update()
 
-
+    class Gimbal:
+        def __init__(self, robot):
+            self.robot = robot
 
 
