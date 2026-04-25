@@ -124,6 +124,11 @@ class Robot:
             self.robot.right_speed = right
             self.robot.update()
 
+        def halt(self):
+            self.robot.left_speed = 0
+            self.robot.right_speed = 0
+            self.robot.update()
+
 
 
 
