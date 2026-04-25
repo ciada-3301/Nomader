@@ -83,8 +83,8 @@ class Robot:
             print("Connection closed")
     
     class Motor:
-        def __init__(self, Robot):
-            self.robot = Robot
+        def __init__(self, robot):
+            self.robot = robot
                     
         def forward(self,speed):
             self.robot.left_speed = speed
@@ -107,17 +107,16 @@ class Robot:
             self.robot.update()
 
         def arc_left(self, speed, bias):
-            left_speed = map_value(bias,-1, 1, -speed, speed )
-            right_speed = speed
-            self.robot.left_speed = left_speed
-            self.robot.right_speed = right_speed
+            base_speed = speed if bias >= 0 else -speed
+            left_motor_speed = map_value(bias, -1, 1, -speed, speed)
+            self.robot.left_speed = left_motor_speed
+            self.robot.right_speed = base_speed
             self.robot.update()
-        
-        def arc_left(self, speed, bias):
-            right_speed = map_value(bias,-1, 1, -speed, speed )
-            left_speed = speed
-            self.robot.left_speed = left_speed
-            self.robot.right_speed = right_speed
+
+        def arc_right(self, speed, bias):
+            right_motor_speed = map_value(bias, -1, 1, -speed, speed)
+            self.robot.left_speed = base_speed
+            self.robot.right_speed = right_motor_speed
             self.robot.update()
 
         def drive(self, right, left, turn_bias):
