@@ -12,7 +12,7 @@ import os
 
 # Import rover control modules
 from helpers.serialcom import Robot
-from helpers.camera import generate_frames
+from helpers.camera import CameraHelper
 from helpers.stats import system
 
 app = Flask(__name__)
@@ -22,7 +22,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 # Global rover instance
 rover = None
 rover_lock = threading.Lock()
-
+camera_server = CameraHelper()
 # Control state
 control_state = {
     'left_speed': 0,
@@ -72,7 +72,7 @@ def index():
 def video_feed():
     """Video streaming route"""
     try:
-        return Response(generate_frames(),
+        return Response(camera_server.generate_frames(),
                        mimetype='multipart/x-mixed-replace; boundary=frame')
     except Exception as e:
         print(f"Camera error: {e}")
@@ -185,4 +185,4 @@ if __name__ == '__main__':
     
     # Run Flask app with SocketIO
     print("🌐 Starting web server on http://0.0.0.0:5000")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
