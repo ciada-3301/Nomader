@@ -12,9 +12,9 @@ import os
 
 # Import rover control modules
 sys.path.insert(0, '/mnt/user-data/uploads')
-from serialcom import Robot
-from camera import generate_frames
-from stats import system
+from helpers.serialcom import Robot
+from helpers.camera import generate_frames
+from helpers.stats import system
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'nomader-secret-key-change-in-production'
