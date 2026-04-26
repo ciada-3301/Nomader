@@ -115,6 +115,7 @@ class Robot:
             self.robot.update()
 
         def arc_right(self, speed, bias):
+            base_speed = speed if bias >= 0 else -speed
             right_motor_speed = map_value(bias, -1, 1, -speed, speed)
             self.robot.left_speed = base_speed
             self.robot.right_speed = right_motor_speed
@@ -135,17 +136,17 @@ class Robot:
             self.robot = robot
         
         def pan(self, angle):
-            self.pitch = angle
-            self.update()
+            self.robot.yaw = angle
+            self.robot.update()
         
         def tilt(self, angle):
-            self.yaw = angle
-            self.update()
+            self.robot.pitch = angle
+            self.robot.update()
         
         def reset(self):
-            self.yaw = 90
-            self.pitch = 90
-            self.update
+            self.robot.yaw = 90
+            self.robot.pitch = 90
+            self.robot.update()
 
 
 
