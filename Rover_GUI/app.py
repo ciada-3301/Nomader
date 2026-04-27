@@ -23,15 +23,20 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 rover = None
 rover_lock = threading.Lock()
 camera_server = CameraHelper()
+
 # Control state
 control_state = {
-    'left_speed': 0,
-    'right_speed': 0,
+    'command': 'halt',
+    'speed': 0,
+    'bias': 0,
     'pitch': 90,
     'yaw': 90,
     'light': 0,
     'connected': False
 }
+
+global_bias = 0.7
+global_speed = 254
 
 def initialize_rover():
     """Initialize rover connection"""
@@ -46,22 +51,69 @@ def initialize_rover():
         control_state['connected'] = False
         return False
 
-def update_rover_state():
-    """Update rover with current control state"""
+def execute_drive_command():
+    """Execute the current drive command using Robot methods"""
+    global rover
+    if not rover or not control_state['connected']:
+        return
+    
+    with rover_lock:
+        try:
+            command = control_state['command']
+            speed = global_speed
+            bias = global_bias
+            
+            # Execute command using Robot's Motor class methods
+            if command == 'forward':
+                rover.motor.forward(speed)
+            elif command == 'backward':
+                rover.motor.backward(speed)
+            elif command == 'right':
+                rover.motor.left(speed-100)
+            elif command == 'left':
+                rover.motor.right(speed-100)
+
+            elif command == 'arc_right_forward':
+                rover.motor.arc_left(speed, bias)
+            elif command == 'arc_left_forward':
+                rover.motor.arc_right(speed, bias)
+
+            elif command == 'arc_right_backward':
+                rover.motor.arc_left(speed, -bias)
+            elif command == 'arc_left_backward':
+                rover.motor.arc_right(speed, -bias)
+
+            elif command == 'halt':
+                rover.motor.halt()
+            else:
+                # Fallback to halt if unknown command
+                rover.motor.halt()
+                
+        except Exception as e:
+            print(f"Error executing drive command: {e}")
+            control_state['connected'] = False
+
+def update_gimbal():
+    """Update gimbal position"""
     global rover
     if rover and control_state['connected']:
         with rover_lock:
             try:
-                rover.send_command(
-                    control_state['right_speed'],
-                    control_state['left_speed'],
-                    control_state['pitch'],
-                    control_state['yaw'],
-                    control_state['light']
-                )
+                rover.gimbal.pan(control_state['yaw'])
+                rover.gimbal.tilt(control_state['pitch'])
             except Exception as e:
-                print(f"Error updating rover: {e}")
-                control_state['connected'] = False
+                print(f"Error updating gimbal: {e}")
+
+def update_light():
+    """Update light brightness"""
+    global rover
+    if rover and control_state['connected']:
+        with rover_lock:
+            try:
+                rover.light = control_state['light']
+                rover.update()
+            except Exception as e:
+                print(f"Error updating light: {e}")
 
 @app.route('/')
 def index():
@@ -109,16 +161,27 @@ def handle_connect():
 def handle_disconnect():
     """Handle client disconnection - emergency stop"""
     print('Client disconnected - emergency stop')
-    control_state['left_speed'] = 0
-    control_state['right_speed'] = 0
-    update_rover_state()
+    control_state['command'] = 'halt'
+    control_state['speed'] = 0
+    control_state['bias'] = 0
+    execute_drive_command()
 
 @socketio.on('drive')
 def handle_drive(data):
-    """Handle drive commands from client"""
-    control_state['left_speed'] = int(data.get('left', 0))
-    control_state['right_speed'] = int(data.get('right', 0))
-    update_rover_state()
+    """
+    Handle drive commands from client
+    Expected data format:
+    {
+        'command': 'forward' | 'backward' | 'left' | 'right' | 'arc_left' | 'arc_right' | 'halt',
+        'speed': 0-255,
+        'bias': 0.0-1.0 (for arc commands)
+    }
+    """
+    control_state['command'] = data.get('command', 'halt')
+    control_state['speed'] = int(data.get('speed', 0))
+    control_state['bias'] = float(data.get('bias', 0))
+    
+    execute_drive_command()
     emit('state_update', control_state, broadcast=True)
 
 @socketio.on('gimbal')
@@ -128,26 +191,30 @@ def handle_gimbal(data):
         control_state['pitch'] = int(data['pitch'])
     if 'yaw' in data:
         control_state['yaw'] = int(data['yaw'])
-    update_rover_state()
+    
+    update_gimbal()
     emit('state_update', control_state, broadcast=True)
 
 @socketio.on('light')
 def handle_light(data):
     """Handle light control"""
     control_state['light'] = int(data.get('brightness', 0))
-    update_rover_state()
+    update_light()
     emit('state_update', control_state, broadcast=True)
 
 @socketio.on('emergency_stop')
 def handle_emergency_stop():
     """Emergency stop - kill all motors"""
     print("⚠️ EMERGENCY STOP ACTIVATED")
-    control_state['left_speed'] = 0
-    control_state['right_speed'] = 0
+    control_state['command'] = 'halt'
+    control_state['speed'] = 0
+    control_state['bias'] = 0
     control_state['light'] = 0
+    
     if rover:
         with rover_lock:
             rover.stop_all()
+    
     emit('state_update', control_state, broadcast=True)
 
 @socketio.on('reset_gimbal')
@@ -155,7 +222,11 @@ def handle_reset_gimbal():
     """Reset gimbal to center position"""
     control_state['pitch'] = 90
     control_state['yaw'] = 90
-    update_rover_state()
+    
+    if rover:
+        with rover_lock:
+            rover.gimbal.reset()
+    
     emit('state_update', control_state, broadcast=True)
 
 def stats_broadcast_thread():
