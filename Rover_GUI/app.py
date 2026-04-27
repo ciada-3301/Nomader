@@ -53,8 +53,8 @@ def update_rover_state():
         with rover_lock:
             try:
                 rover.send_command(
-                    control_state['left_speed'],
                     control_state['right_speed'],
+                    control_state['left_speed'],
                     control_state['pitch'],
                     control_state['yaw'],
                     control_state['light']
