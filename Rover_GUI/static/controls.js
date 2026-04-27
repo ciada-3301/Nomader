@@ -1,6 +1,7 @@
 /**
  * THE NOMADER - Control System
  * Real-time rover control with WebSocket communication
+ * Updated to use differential drive commands (forward, backward, left, right, arc_left, arc_right)
  */
 
 // ========================================
@@ -9,8 +10,9 @@
 
 const state = {
     connected: false,
-    leftSpeed: 0,
-    rightSpeed: 0,
+    command: 'halt',
+    speed: 0,
+    bias: 0,
     pitch: 90,
     yaw: 90,
     light: 0,
@@ -27,6 +29,7 @@ const GIMBAL_STEP = 5;
 const LIGHT_STEP = 25;
 const JOYSTICK_DEADZONE = 0.15;
 const UPDATE_RATE = 50; // ms (20 updates/sec)
+const ARC_THRESHOLD = 0.3; // Threshold for switching from straight to arc movement
 
 // ========================================
 // INITIALIZATION
@@ -142,8 +145,8 @@ function initializeJoystick() {
         // Update handle position
         handle.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
         
-        // Convert to motor values
-        updateMotorsFromJoystick(x / radius, y / radius);
+        // Convert to drive command
+        updateDriveFromJoystick(x / radius, y / radius);
     }
 
     function handleEnd() {
@@ -159,8 +162,9 @@ function initializeJoystick() {
         }, 300);
         
         // Stop motors
-        state.leftSpeed = 0;
-        state.rightSpeed = 0;
+        state.command = 'halt';
+        state.speed = 0;
+        state.bias = 0;
         sendDriveCommand();
     }
 
@@ -178,27 +182,61 @@ function initializeJoystick() {
     joystick.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-function updateMotorsFromJoystick(x, y) {
-    // X-axis: turning (left/right)
-    // Y-axis: forward/backward (inverted)
+function updateDriveFromJoystick(x, y) {
+    /**
+     * Convert joystick position to drive commands
+     * X-axis: turning (left/right)
+     * Y-axis: forward/backward (inverted)
+     */
     
-    const forward = -y; // Invert Y axis
+    const forward = -y; // Invert Y axis (up is forward)
     const turn = x;
     
-    // Tank drive mixing
-    let left = forward + turn;
-    let right = forward - turn;
+    // Calculate magnitude for speed
+    const magnitude = Math.sqrt(forward * forward + turn * turn);
+    const speed = Math.round(magnitude * MOTOR_MAX);
     
-    // Normalize if values exceed [-1, 1]
-    const maxValue = Math.max(Math.abs(left), Math.abs(right));
-    if (maxValue > 1) {
-        left /= maxValue;
-        right /= maxValue;
+    // Determine command based on joystick position
+    let command = 'halt';
+    let bias = 0;
+    
+    if (magnitude > 0.1) { // Minimum threshold to register movement
+        const turnRatio = Math.abs(turn) / Math.max(magnitude, 0.001);
+        
+        if (Math.abs(turn) < ARC_THRESHOLD && forward > 0) {
+            // Mostly forward
+            command = 'forward';
+        } else if (Math.abs(turn) < ARC_THRESHOLD && forward < 0) {
+            // Mostly backward
+            command = 'backward';
+        } else if (Math.abs(forward) < ARC_THRESHOLD && turn < 0) {
+            // Mostly left turn in place
+            command = 'left';
+        } else if (Math.abs(forward) < ARC_THRESHOLD && turn > 0) {
+            // Mostly right turn in place
+            command = 'right';
+        } else if (forward > 0 && turn < 0) {
+            // Arc left while going forward
+            command = 'arc_left';
+            bias = Math.abs(turn); // Bias determines how tight the arc is
+        } else if (forward > 0 && turn > 0) {
+            // Arc right while going forward
+            command = 'arc_right';
+            bias = Math.abs(turn);
+        } else if (forward < 0 && turn < 0) {
+            // Arc left while reversing
+            command = 'arc_left';
+            bias = -Math.abs(turn); // Negative bias for reverse
+        } else if (forward < 0 && turn > 0) {
+            // Arc right while reversing
+            command = 'arc_right';
+            bias = -Math.abs(turn);
+        }
     }
     
-    // Scale to motor range
-    state.leftSpeed = Math.round(left * MOTOR_MAX);
-    state.rightSpeed = Math.round(right * MOTOR_MAX);
+    state.command = command;
+    state.speed = speed;
+    state.bias = bias;
     
     sendDriveCommand();
 }
@@ -318,38 +356,37 @@ function processKeyboardInput() {
     const keys = state.keysPressed;
     
     // Drive controls (WASD)
-    let forward = 0;
-    let turn = 0;
+    let command = 'halt';
+    let speed = MOTOR_MAX;
+    let bias = 0.7; // Default arc bias for keyboard
     
-    if (keys.has('w')) forward += 1;
-    if (keys.has('s')) forward -= 1;
-    if (keys.has('a')) turn -= 1;
-    if (keys.has('d')) turn += 1;
+    // Determine command based on key combinations
+    if (keys.has('w') && keys.has('a')) {
+        command = 'arc_left_forward';
+    } else if (keys.has('w') && keys.has('d')) {
+        command = 'arc_right_forward';
+    } else if (keys.has('s') && keys.has('a')) {
+        command = 'arc_left_backward';
+        bias = -0.7; // Reverse arc
+    } else if (keys.has('s') && keys.has('d')) {
+        command = 'arc_right_backward';
+        bias = -0.7; // Reverse arc
+    } else if (keys.has('w')) {
+        command = 'forward';
+    } else if (keys.has('s')) {
+        command = 'backward';
+    } else if (keys.has('a')) {
+        command = 'left';
+    } else if (keys.has('d')) {
+        command = 'right';
+    }
     
-    // Only update motors if keyboard input is active
-    if (keys.has('w') || keys.has('s') || keys.has('a') || keys.has('d')) {
-        // Tank drive mixing
-        let left = forward + turn;
-        let right = forward - turn;
-        
-        // Normalize
-        const maxValue = Math.max(Math.abs(left), Math.abs(right));
-        if (maxValue > 1) {
-            left /= maxValue;
-            right /= maxValue;
-        }
-        
-        state.leftSpeed = Math.round(left * MOTOR_MAX);
-        state.rightSpeed = Math.round(right * MOTOR_MAX);
-        
+    // Update state and send command if changed
+    if (state.command !== command || (command !== 'halt' && state.speed !== speed)) {
+        state.command = command;
+        state.speed = (command !== 'halt') ? speed : 0;
+        state.bias = bias;
         sendDriveCommand();
-    } else if (!keys.has('w') && !keys.has('s') && !keys.has('a') && !keys.has('d')) {
-        // Stop if no drive keys pressed
-        if (state.leftSpeed !== 0 || state.rightSpeed !== 0) {
-            state.leftSpeed = 0;
-            state.rightSpeed = 0;
-            sendDriveCommand();
-        }
     }
     
     // Gimbal controls (Arrow keys)
@@ -391,8 +428,9 @@ function initializeButtons() {
     document.getElementById('emergencyStop').addEventListener('click', () => {
         console.log('⚠️ EMERGENCY STOP');
         socket.emit('emergency_stop');
-        state.leftSpeed = 0;
-        state.rightSpeed = 0;
+        state.command = 'halt';
+        state.speed = 0;
+        state.bias = 0;
         state.light = 0;
         updateDisplays(state);
     });
@@ -409,18 +447,27 @@ function initializeButtons() {
 // WEBSOCKET COMMANDS
 // ========================================
 
-let lastDriveCommand = { left: 0, right: 0 };
+let lastDriveCommand = { command: 'halt', speed: 0, bias: 0 };
 let lastGimbalCommand = { pitch: 90, yaw: 90 };
 let lastLightCommand = 0;
 
 function sendDriveCommand() {
     // Only send if values changed
-    if (lastDriveCommand.left !== state.leftSpeed || lastDriveCommand.right !== state.rightSpeed) {
+    if (lastDriveCommand.command !== state.command || 
+        lastDriveCommand.speed !== state.speed || 
+        lastDriveCommand.bias !== state.bias) {
+        
         socket.emit('drive', {
-            left: state.leftSpeed,
-            right: state.rightSpeed
+            command: state.command,
+            speed: state.speed,
+            bias: state.bias
         });
-        lastDriveCommand = { left: state.leftSpeed, right: state.rightSpeed };
+        
+        lastDriveCommand = { 
+            command: state.command, 
+            speed: state.speed, 
+            bias: state.bias 
+        };
     }
 }
 
@@ -448,9 +495,15 @@ function sendLightCommand() {
 // ========================================
 
 function updateDisplays(data) {
-    // Motor values
-    document.getElementById('leftMotor').textContent = data.left_speed || state.leftSpeed;
-    document.getElementById('rightMotor').textContent = data.right_speed || state.rightSpeed;
+    // Command and speed display
+    const commandText = data.command || state.command;
+    const speedValue = data.speed || state.speed;
+    
+    document.getElementById('speedDisplay').textContent = speedValue;
+    
+    // Show current command
+    const commandDisplay = document.getElementById('commandDisplay') || createCommandDisplay();
+    commandDisplay.textContent = commandText.toUpperCase();
     
     // Gimbal
     document.getElementById('pitchDisplay').textContent = data.pitch || state.pitch;
@@ -462,14 +515,27 @@ function updateDisplays(data) {
         updateLightUI();
     }
     
-    // Speed (average of both motors)
-    const avgSpeed = Math.abs((data.left_speed || state.leftSpeed) + (data.right_speed || state.rightSpeed)) / 2;
-    document.getElementById('speedDisplay').textContent = Math.round(avgSpeed);
-    
-    // Heading (based on differential)
-    const diff = (data.right_speed || state.rightSpeed) - (data.left_speed || state.leftSpeed);
-    const heading = Math.round((diff / MOTOR_MAX) * 45); // ±45 degrees
-    document.getElementById('headingDisplay').textContent = heading > 0 ? `+${heading}°` : `${heading}°`;
+    // Bias indicator for arc movements
+    if (data.bias !== undefined && (data.command === 'arc_left' || data.command === 'arc_right')) {
+        const biasDisplay = document.getElementById('biasDisplay') || createBiasDisplay();
+        biasDisplay.textContent = `Bias: ${(data.bias * 100).toFixed(0)}%`;
+    }
+}
+
+function createCommandDisplay() {
+    const display = document.createElement('div');
+    display.id = 'commandDisplay';
+    display.style.cssText = 'position: fixed; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #0f0; padding: 10px; border-radius: 5px; font-family: monospace;';
+    document.body.appendChild(display);
+    return display;
+}
+
+function createBiasDisplay() {
+    const display = document.createElement('div');
+    display.id = 'biasDisplay';
+    display.style.cssText = 'position: fixed; top: 50px; right: 10px; background: rgba(0,0,0,0.7); color: #0ff; padding: 10px; border-radius: 5px; font-family: monospace;';
+    document.body.appendChild(display);
+    return display;
 }
 
 function updateLightUI() {
