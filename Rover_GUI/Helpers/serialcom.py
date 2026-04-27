@@ -109,16 +109,16 @@ class Robot:
 
         def arc_left(self, speed, bias):
             base_speed = speed if bias >= 0 else -speed
-            left_motor_speed = map_value(bias, -1, 1, -speed, speed)
-            self.robot.left_speed = left_motor_speed
+            left_motor_speed = (1-abs(bias))*speed 
+            self.robot.left_speed = left_motor_speed if bias >=0 else -left_motor_speed
             self.robot.right_speed = base_speed
             self.robot.update()
 
         def arc_right(self, speed, bias):
             base_speed = speed if bias >= 0 else -speed
-            right_motor_speed = map_value(bias, -1, 1, -speed, speed)
+            right_motor_speed = (1-abs(bias))*speed 
             self.robot.left_speed = base_speed
-            self.robot.right_speed = right_motor_speed
+            self.robot.right_speed = right_motor_speed if bias >=0 else -right_motor_speed
             self.robot.update()
 
         def drive(self, right, left, turn_bias):
