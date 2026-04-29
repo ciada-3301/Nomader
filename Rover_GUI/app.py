@@ -66,11 +66,15 @@ def execute_drive_command():
             # Execute command using Robot's Motor class methods
             if command == 'forward':
                 rover.motor.forward(speed)
+                print("Forward")
             elif command == 'backward':
+                print("backward")
                 rover.motor.backward(speed)
             elif command == 'right':
+                print("right")
                 rover.motor.left(speed-100)
             elif command == 'left':
+                print("left")
                 rover.motor.right(speed-100)
 
             elif command == 'arc_right_forward':
