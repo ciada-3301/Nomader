@@ -21,110 +21,83 @@
                 <span class="status-text">CONNECTING...</span>
             </div>
             <div class="stats-panel">
-                        
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <span class="stat-label">CPU</span>
-                                <span class="stat-value" id="cpuUsage">--</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">TEMP</span>
-                                <span class="stat-value" id="cpuTemp">--</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">RAM </span>
-                                <span class="stat-value" id="ramUsage">--</span>
-                            </div>
-                        </div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">CPU</span>
+                        <span class="stat-value" id="cpuUsage">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">TEMP</span>
+                        <span class="stat-value" id="cpuTemp">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">RAM</span>
+                        <span class="stat-value" id="ramUsage">--</span>
+                    </div>
+                </div>
             </div>
             <div class="quick-actions">
-                            <button class="action-btn emergency-btn" id="emergencyStop">
-                            <span class="btn-icon"></span>
-                            <span>EMERGENCY RESET</span>
-                        </button>
-                    </div>
+                <button class="action-btn emergency-btn" id="emergencyStop">
+                    <span class="btn-icon"></span>
+                    <span>EMERGENCY RESET</span>
+                </button>
+            </div>
         </header>
 
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Top Section: Camera Feed -->
-            <section class="camera-section">
-                <div class="camera-container">
-                    <img id="cameraFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed">
-                    <div class="camera-overlay">
-                        <div class="hud-item">
-                            <span class="hud-label">SPEED</span>
-                            <span class="hud-value" id="speedDisplay">0</span>
-                        </div>
-                        <div class="hud-item">
-                            <span class="hud-label">HEADING</span>
-                            <span class="hud-value" id="headingDisplay">0°</span>
+            <div class="main-grid">
+                <!-- Left: Camera Feed -->
+                <section class="camera-section">
+                    <div class="camera-container">
+                        <img id="cameraFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed">
+                        <div class="camera-overlay">
+                            <div class="hud-item">
+                                <span class="hud-label">SPEED</span>
+                                <span class="hud-value" id="speedDisplay">0</span>
+                            </div>
+                            <div class="hud-item">
+                                <span class="hud-label">HEADING</span>
+                                <span class="hud-value" id="headingDisplay">0°</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- Middle Section: Main Controls -->
-            <section class="control-section">
-                <div class="control-grid">
-                    <!-- Left: Drive Control -->
-                    <div class="control-panel">
-                        <h3 class="panel-title">DRIVE CONTROL</h3>
-                        <div class="joystick-container">
-                            <div class="joystick" id="driveJoystick">
-                                <div class="joystick-handle" id="driveHandle"></div>
-                                <div class="joystick-crosshair">
-                                    <div class="crosshair-h"></div>
-                                    <div class="crosshair-v"></div>
-                                </div>
+                <!-- Right: Controls Panel -->
+                <section class="controls-panel">
+                    
+                    <div class="control-box">
+                        <h3 class="box-title">ROBOT CONTROL</h3>
+                        <div class="values-grid">
+                            <div class="value-display">
+                                <span class="value-label">LEFT</span>
+                                <span class="value-number" id="leftMotor">0</span>
                             </div>
-                            <div class="joystick-label">
-                                <span>L: <span id="leftMotor">0</span></span>
-                                <span>R: <span id="rightMotor">0</span></span>
+                            <div class="value-display">
+                                <span class="value-label">PITCH</span>
+                                <span class="value-number" id="pitchDisplay">90</span>
+                                <span class="value-unit">°</span>
+                            </div>
+                            
+                        </div>
+                        <div class="values-grid">
+                            <div class="value-display">
+                                <span class="value-label">RIGHT</span>
+                                <span class="value-number" id="rightMotor">0</span>
+                            </div>
+                            <div class="value-display">
+                                <span class="value-label">YAW</span>
+                                <span class="value-number" id="yawDisplay">90</span>
+                                <span class="value-unit">°</span>
                             </div>
                         </div>
                         <div class="keyboard-hints">
                             <div class="hint-row">
                                 <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
-                            </div>
-                            <span class="hint-text">Movement Controls</span>
-                        </div>
-                    </div>
-
-                    <!-- Right: Throttle & Gimbal -->
-                    <div class="control-panel">
-                        <h3 class="panel-title">CAMERA GIMBAL</h3>
-                        <div class="gimbal-container">
-                            <div class="gimbal-control" id="gimbalControl">
-                                <div class="gimbal-handle" id="gimbalHandle"></div>
-                                <div class="gimbal-crosshair">
-                                    <div class="crosshair-h"></div>
-                                    <div class="crosshair-v"></div>
-                                </div>
-                            </div>
-                            <div class="gimbal-label">
-                                <span>PITCH: <span id="pitchDisplay">90</span>°</span>
-                                <span>YAW: <span id="yawDisplay">90</span>°</span>
-                            </div>
-                        </div>
-                        <div class="keyboard-hints">
-                            <div class="hint-row">
+                                <pre>                            </pre>
                                 <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
                             </div>
-                            <span class="hint-text">Gimbal Controls</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Bottom Section: Secondary Controls -->
-            <section class="secondary-controls">
-                <div class="control-group">
-                    <!-- Light Control -->
-                    <div class="light-control">
-                        <div class="control-header">
-                            <span class="control-icon"></span>
-                            <h4>LIGHT</h4>
                         </div>
                         <div class="slider-container">
                             <input type="range" id="lightSlider" min="0" max="255" value="0" class="slider">
@@ -134,15 +107,23 @@
                             <span id="lightValue">0</span>
                             <span class="unit">/ 255</span>
                         </div>
-                        <div class="keyboard-hints">
-                            <kbd>Q</kbd> <span class="hint-text">Dim</span>
-                            <kbd>E</kbd> <span class="hint-text">Bright</span>
-                        </div>
                     </div>
 
                    
-                </div>
-            </section>
+
+                    <!-- Light Control -->
+                    <div class="control-box">
+                        <h3 class="box-title">LIGHT CONTROL</h3>
+                        
+                        <div class="keyboard-hints">
+                            <div class="hint-row">
+                                <kbd>Q</kbd> <span class="hint-text">Dim</span>
+                                <kbd>E</kbd> <span class="hint-text">Bright</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
