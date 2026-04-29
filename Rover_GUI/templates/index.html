@@ -6,19 +6,43 @@
     <title>The Nomader - Rover Control</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
             <div class="logo">
-                <span class="logo-icon">🔴</span>
-                <h1>THE NOMADER</h1>
+                <span class="logo-icon"></span>
+                <h1>__THE NOMADER__</h1>
             </div>
             <div class="connection-status" id="connectionStatus">
                 <span class="status-dot"></span>
                 <span class="status-text">CONNECTING...</span>
             </div>
+            <div class="stats-panel">
+                        
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">CPU</span>
+                                <span class="stat-value" id="cpuUsage">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">TEMP</span>
+                                <span class="stat-value" id="cpuTemp">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">RAM </span>
+                                <span class="stat-value" id="ramUsage">--</span>
+                            </div>
+                        </div>
+            </div>
+            <div class="quick-actions">
+                            <button class="action-btn emergency-btn" id="emergencyStop">
+                            <span class="btn-icon"></span>
+                            <span>EMERGENCY RESET</span>
+                        </button>
+                    </div>
         </header>
 
         <!-- Main Content -->
@@ -99,7 +123,7 @@
                     <!-- Light Control -->
                     <div class="light-control">
                         <div class="control-header">
-                            <span class="control-icon">💡</span>
+                            <span class="control-icon"></span>
                             <h4>LIGHT</h4>
                         </div>
                         <div class="slider-container">
@@ -116,39 +140,7 @@
                         </div>
                     </div>
 
-                    <!-- System Stats -->
-                    <div class="stats-panel">
-                        <div class="control-header">
-                            <span class="control-icon">📊</span>
-                            <h4>SYSTEM STATUS</h4>
-                        </div>
-                        <div class="stats-grid">
-                            <div class="stat-item">
-                                <span class="stat-label">CPU</span>
-                                <span class="stat-value" id="cpuUsage">--</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">TEMP</span>
-                                <span class="stat-value" id="cpuTemp">--</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">RAM</span>
-                                <span class="stat-value" id="ramUsage">--</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quick Actions -->
-                    <div class="quick-actions">
-                        <button class="action-btn reset-btn" id="resetGimbal">
-                            <span class="btn-icon">🎯</span>
-                            <span>RESET GIMBAL</span>
-                        </button>
-                        <button class="action-btn emergency-btn" id="emergencyStop">
-                            <span class="btn-icon">⚠️</span>
-                            <span>EMERGENCY STOP</span>
-                        </button>
-                    </div>
+                   
                 </div>
             </section>
         </main>
