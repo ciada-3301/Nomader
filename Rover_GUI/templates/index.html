@@ -3,127 +3,1000 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Nomader - Rover Control</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>THE NOMADER — Rover Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* =============================================
+           ROOT & RESET
+        ============================================= */
+        :root {
+            --bg-void:      #060810;
+            --bg-deep:      #0b0f1c;
+            --bg-panel:     #0f1525;
+            --bg-raised:    #151d30;
+            --bg-hover:     #1c2540;
+
+            --cyan:         #00e5ff;
+            --cyan-dim:     rgba(0,229,255,0.35);
+            --cyan-ghost:   rgba(0,229,255,0.08);
+            --green:        #00ff9d;
+            --green-dim:    rgba(0,255,157,0.3);
+            --amber:        #ffb700;
+            --red:          #ff3b3b;
+            --red-dim:      rgba(255,59,59,0.3);
+
+            --txt-hi:       #e8f4ff;
+            --txt-mid:      #6b82a8;
+            --txt-lo:       #2e3d5a;
+
+            --border:       rgba(0,229,255,0.12);
+            --border-hi:    rgba(0,229,255,0.35);
+
+            --font-display: 'Orbitron', monospace;
+            --font-mono:    'IBM Plex Mono', monospace;
+            --font-data:    'Share Tech Mono', monospace;
+
+            --r-sm: 4px;
+            --r-md: 8px;
+            --r-lg: 12px;
+        }
+
+        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+        html, body {
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+            background: var(--bg-void);
+            color: var(--txt-hi);
+            font-family: var(--font-mono);
+        }
+
+        /* scanline overlay */
+        body::after {
+            content:'';
+            position: fixed; inset:0;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,0.06) 3px,
+                rgba(0,0,0,0.06) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* =============================================
+           LAYOUT SKELETON  (3 rows × CSS Grid)
+           Row1: header  ~48px
+           Row2: main    1fr
+           Row3: shell   ~160px
+        ============================================= */
+        .cockpit {
+            display: grid;
+            grid-template-rows: 48px 1fr 168px;
+            grid-template-columns: 1fr;
+            width: 100vw;
+            height: 100vh;
+            gap: 6px;
+            padding: 6px;
+        }
+
+        /* =============================================
+           HEADER BAR
+        ============================================= */
+        .hdr {
+            grid-row: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 0 14px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hdr::before {
+            content:'';
+            position:absolute; top:0; left:0; right:0; height:1px;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            animation: scan-h 4s linear infinite;
+        }
+        @keyframes scan-h {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(100%);  }
+        }
+
+        .hdr-logo {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 900;
+            letter-spacing: .25em;
+            color: var(--cyan);
+            text-shadow: 0 0 18px var(--cyan-dim);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .hdr-sep { width:1px; height:24px; background: var(--border-hi); flex-shrink:0; }
+
+        .hdr-status {
+            display:flex; align-items:center; gap:6px;
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 3px 10px;
+            font-family: var(--font-data);
+            font-size:.72rem;
+            letter-spacing:.08em;
+        }
+        .dot {
+            width:8px; height:8px; border-radius:50%;
+            background: var(--txt-lo);
+            animation: blink 1s infinite;
+        }
+        .dot.ok  { background: var(--green); box-shadow:0 0 8px var(--green); animation:none; }
+        .dot.err { background: var(--red);   box-shadow:0 0 8px var(--red); }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+        .hdr-stats {
+            display: flex; gap:6px; align-items:center;
+            margin-left: auto;
+        }
+        .hdr-stat {
+            display:flex; flex-direction:column; align-items:center;
+            background: var(--bg-raised);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 2px 10px;
+            min-width:62px;
+        }
+        .hdr-stat-lbl {
+            font-family: var(--font-data);
+            font-size:.6rem; color:var(--txt-mid); letter-spacing:.12em;
+        }
+        .hdr-stat-val {
+            font-family: var(--font-display);
+            font-size:.82rem; font-weight:700;
+            color: var(--cyan);
+        }
+
+        .e-stop {
+            flex-shrink:0;
+            background: linear-gradient(135deg, #c20000, var(--red));
+            border: 1px solid var(--red);
+            color:#fff;
+            font-family: var(--font-display);
+            font-size:.62rem; font-weight:700; letter-spacing:.1em;
+            padding: 5px 14px;
+            border-radius: var(--r-sm);
+            cursor:pointer;
+            box-shadow: 0 0 16px var(--red-dim);
+            transition: box-shadow .15s, transform .1s;
+        }
+        .e-stop:hover { box-shadow:0 0 28px var(--red); transform:scale(1.03); }
+        .e-stop:active{ transform:scale(.97); }
+
+        /* =============================================
+           MAIN ROW  (camera | controls | map)
+        ============================================= */
+        .main-row {
+            grid-row: 2;
+            display: grid;
+            grid-template-columns: 1fr 280px 1fr;
+            gap: 6px;
+        }
+
+        /* shared panel style */
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-title {
+            font-family: var(--font-display);
+            font-size: .62rem; font-weight:700;
+            letter-spacing:.2em; color:var(--cyan);
+            padding: 7px 12px 5px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0,229,255,.03);
+            display:flex; align-items:center; gap:6px;
+            flex-shrink:0;
+        }
+        .panel-title::before {
+            content:'';
+            display:inline-block;
+            width:6px; height:6px; border-radius:50%;
+            background: var(--cyan);
+            box-shadow: 0 0 8px var(--cyan);
+        }
+
+        /* ---- CAMERA ---- */
+        .cam-wrap {
+            flex:1;
+            position:relative;
+            background:#000;
+        }
+        #cameraFeed {
+            width:100%; height:100%;
+            object-fit:cover;
+            display:block;
+        }
+        .cam-hud {
+            position:absolute; inset:0;
+            pointer-events:none;
+            display:flex; flex-direction:column;
+            justify-content:space-between;
+            padding:10px 14px;
+        }
+        .cam-hud-top, .cam-hud-bot {
+            display:flex; justify-content:space-between; align-items:flex-start;
+        }
+        .hud-chip {
+            background: rgba(6,8,16,.72);
+            border: 1px solid var(--border-hi);
+            border-radius: var(--r-sm);
+            padding: 4px 10px;
+            display:flex; flex-direction:column; gap:1px;
+        }
+        .hud-chip-lbl { font-family:var(--font-data); font-size:.58rem; color:var(--txt-mid); letter-spacing:.12em; }
+        .hud-chip-val { font-family:var(--font-display); font-size:1.1rem; font-weight:700; color:var(--cyan); text-shadow:0 0 12px var(--cyan-dim); }
+
+        /* corner brackets */
+        .corner { position:absolute; width:18px; height:18px; }
+        .corner.tl { top:10px; left:10px; border-top:2px solid var(--cyan); border-left:2px solid var(--cyan); }
+        .corner.tr { top:10px; right:10px; border-top:2px solid var(--cyan); border-right:2px solid var(--cyan); }
+        .corner.bl { bottom:10px; left:10px; border-bottom:2px solid var(--cyan); border-left:2px solid var(--cyan); }
+        .corner.br { bottom:10px; right:10px; border-bottom:2px solid var(--cyan); border-right:2px solid var(--cyan); }
+
+        /* ---- CONTROLS ---- */
+        .ctrl-body {
+            flex:1; padding:10px 12px;
+            display:flex; flex-direction:column; gap:10px;
+            overflow:hidden;
+        }
+
+        .motor-grid {
+            display:grid; grid-template-columns:1fr 1fr; gap:6px;
+        }
+        .motor-card {
+            background:var(--bg-raised);
+            border:1px solid var(--border);
+            border-radius:var(--r-md);
+            padding:6px 10px;
+            display:flex; flex-direction:column; align-items:center; gap:2px;
+            position:relative; overflow:hidden;
+        }
+        .motor-card::before {
+            content:''; position:absolute; top:0; left:0; right:0; height:2px;
+            background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
+        }
+        .mc-lbl { font-family:var(--font-data); font-size:.6rem; color:var(--txt-mid); letter-spacing:.12em; }
+        .mc-val {
+            font-family:var(--font-display); font-size:1.4rem; font-weight:700;
+            color:var(--cyan); text-shadow:0 0 14px var(--cyan-dim);
+        }
+        .mc-bar {
+            width:100%; height:3px; background:var(--bg-void); border-radius:2px; overflow:hidden;
+        }
+        .mc-bar-fill {
+            height:100%; width:0%; background:var(--cyan);
+            transition: width .15s, background .15s;
+            box-shadow: 0 0 6px var(--cyan);
+        }
+
+        /* WASD pad */
+        .kbd-pad {
+            display:flex; flex-direction:column; align-items:center; gap:4px;
+        }
+        .kbd-row { display:flex; gap:4px; }
+        kbd {
+            display:inline-flex; align-items:center; justify-content:center;
+            width:34px; height:34px;
+            background:var(--bg-raised);
+            border:1px solid var(--border-hi);
+            border-radius:var(--r-sm);
+            font-family:var(--font-display);
+            font-size:.7rem; font-weight:700;
+            color:var(--txt-mid);
+            box-shadow: 0 3px 0 rgba(0,0,0,.5);
+            transition: all .1s;
+            user-select:none;
+        }
+        kbd.active {
+            background:var(--cyan-dim);
+            color:var(--cyan);
+            border-color:var(--cyan);
+            box-shadow:0 0 12px var(--cyan-dim);
+            transform:translateY(2px);
+        }
+
+        /* servo displays */
+        .servo-row {
+            display:grid; grid-template-columns:1fr 1fr; gap:6px;
+        }
+        .servo-card {
+            background:var(--bg-raised);
+            border:1px solid var(--border);
+            border-radius:var(--r-md);
+            padding:5px 10px;
+            display:flex; flex-direction:column; align-items:center;
+        }
+        .sv-lbl { font-family:var(--font-data); font-size:.6rem; color:var(--txt-mid); letter-spacing:.12em; }
+        .sv-val { font-family:var(--font-display); font-size:1.1rem; color:var(--amber); }
+
+        /* light slider */
+        .light-section { display:flex; flex-direction:column; gap:5px; }
+        .light-header {
+            display:flex; justify-content:space-between; align-items:center;
+            font-family:var(--font-data); font-size:.62rem;
+            color:var(--txt-mid); letter-spacing:.1em;
+        }
+        .light-val { font-family:var(--font-display); font-size:.85rem; color:var(--cyan); }
+        .slider-wrap {
+            position:relative; height:8px;
+            background:var(--bg-void);
+            border:1px solid var(--border);
+            border-radius:6px;
+            display:flex; align-items:center;
+        }
+        input[type=range].lslider {
+            width:100%; height:100%;
+            -webkit-appearance:none; appearance:none;
+            background:transparent; outline:none;
+            cursor:pointer; position:relative; z-index:2;
+        }
+        input[type=range].lslider::-webkit-slider-thumb {
+            -webkit-appearance:none; appearance:none;
+            width:18px; height:18px;
+            background:var(--cyan); border-radius:50%;
+            border:2px solid #fff;
+            box-shadow:0 0 10px var(--cyan-dim);
+        }
+        .slider-fill-bar {
+            position:absolute; top:0; left:0; height:100%; width:0%;
+            background: linear-gradient(90deg, var(--cyan-ghost), var(--cyan-dim));
+            border-radius:6px; pointer-events:none;
+            transition: width .1s;
+        }
+        .light-keys {
+            display:flex; gap:6px; align-items:center;
+            font-family:var(--font-data); font-size:.6rem; color:var(--txt-mid);
+        }
+        .light-keys kbd { width:24px; height:24px; font-size:.6rem; }
+
+        /* ---- MAP ---- */
+        .map-wrap {
+            flex:1; position:relative;
+            background: #0a1020;
+            overflow:hidden;
+        }
+        /* placeholder grid map */
+        .map-grid-svg {
+            width:100%; height:100%;
+        }
+        #mapIframe {
+            width:100%; height:100%; border:none; display:block;
+        }
+        .map-rover-marker {
+            position:absolute;
+            width:16px; height:16px;
+            transform:translate(-50%,-50%);
+        }
+        .map-rover-marker::before {
+            content:'';
+            position:absolute; inset:0;
+            background:var(--cyan);
+            border-radius:50%;
+            animation: sonar 1.6s ease-out infinite;
+        }
+        .map-rover-marker::after {
+            content:'';
+            position:absolute; top:50%; left:50%;
+            width:8px; height:8px;
+            background:var(--cyan);
+            border-radius:50%;
+            transform:translate(-50%,-50%);
+            box-shadow:0 0 10px var(--cyan);
+        }
+        @keyframes sonar {
+            0%   { transform:scale(1);   opacity:.8; }
+            100% { transform:scale(3.5); opacity:0; }
+        }
+        .map-coords {
+            position:absolute; bottom:8px; left:10px;
+            font-family:var(--font-data); font-size:.62rem; color:var(--txt-mid);
+            background:rgba(6,8,16,.8); border:1px solid var(--border);
+            border-radius:var(--r-sm); padding:3px 8px;
+        }
+        .map-coords span { color:var(--cyan); }
+
+        /* =============================================
+           SHELL ROW
+        ============================================= */
+        .shell-row {
+            grid-row: 3;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 6px;
+        }
+
+        .shell-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .shell-titlebar {
+            display:flex; align-items:center; gap:6px;
+            padding:5px 12px;
+            background:rgba(0,229,255,.03);
+            border-bottom:1px solid var(--border);
+            flex-shrink:0;
+        }
+        .shell-titlebar-dot { width:8px; height:8px; border-radius:50%; }
+        .shell-titlebar-dot.r { background:#ff5f57; }
+        .shell-titlebar-dot.y { background:#ffbd2e; }
+        .shell-titlebar-dot.g { background:#28c840; }
+        .shell-name {
+            font-family:var(--font-data); font-size:.6rem;
+            color:var(--txt-mid); letter-spacing:.1em; margin-left:6px;
+        }
+
+        .shell-output {
+            flex:1; overflow-y:auto; overflow-x:hidden;
+            padding:8px 12px;
+            font-family:var(--font-data); font-size:.72rem;
+            line-height:1.6;
+            scrollbar-width:thin;
+            scrollbar-color: var(--border) transparent;
+        }
+        .shell-output::-webkit-scrollbar { width:4px; }
+        .shell-output::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+        .shell-line { display:flex; gap:8px; }
+        .shell-line .prompt { color:var(--green); flex-shrink:0; }
+        .shell-line .cmd    { color:var(--txt-hi); }
+        .shell-line .out    { color:var(--txt-mid); }
+        .shell-line .err    { color:var(--red); }
+        .shell-line .info   { color:var(--amber); }
+
+        .shell-input-row {
+            display:flex; align-items:center; gap:8px;
+            padding:6px 12px;
+            border-top:1px solid var(--border);
+            flex-shrink:0;
+        }
+        .shell-prompt-sym {
+            font-family:var(--font-data); font-size:.75rem;
+            color:var(--green); flex-shrink:0;
+        }
+        #shellInput {
+            flex:1; background:transparent; border:none; outline:none;
+            font-family:var(--font-data); font-size:.72rem;
+            color:var(--txt-hi); caret-color:var(--cyan);
+        }
+        #shellInput::placeholder { color:var(--txt-lo); }
+
+        /* telemetry log */
+        .telem-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .telem-body {
+            flex:1; overflow-y:auto; padding:8px 10px;
+            font-family:var(--font-data); font-size:.65rem; line-height:1.7;
+            scrollbar-width:thin; scrollbar-color: var(--border) transparent;
+        }
+        .telem-body::-webkit-scrollbar { width:4px; }
+        .telem-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+        .telem-entry { display:flex; gap:8px; }
+        .telem-ts { color:var(--txt-lo); flex-shrink:0; }
+        .telem-key { color:var(--amber); }
+        .telem-sep { color:var(--txt-lo); }
+        .telem-vl  { color:var(--txt-hi); }
+
+        /* =============================================
+           UTILITY / ANIMATIONS
+        ============================================= */
+        @keyframes fadeUp {
+            from { opacity:0; transform:translateY(6px); }
+            to   { opacity:1; transform:translateY(0); }
+        }
+        .panel, .telem-panel, .shell-panel {
+            animation: fadeUp .4s ease-out both;
+        }
+        .main-row .panel:nth-child(1) { animation-delay:.05s; }
+        .main-row .panel:nth-child(2) { animation-delay:.15s; }
+        .main-row .panel:nth-child(3) { animation-delay:.25s; }
+        .shell-panel { animation-delay:.3s; }
+        .telem-panel { animation-delay:.35s; }
+
+        /* =============================================
+           CONNECTION STATUS — controls.js compat
+           (adds/removes .connected / .disconnected)
+        ============================================= */
+        .connection-status.connected .status-dot  { background:var(--green); box-shadow:0 0 8px var(--green); animation:none; }
+        .connection-status.disconnected .status-dot { background:var(--red); box-shadow:0 0 8px var(--red); animation:none; }
+        .connection-status.connected .status-text  { color:var(--green); }
+        .connection-status.disconnected .status-text { color:var(--red); }
+
+        /* =============================================
+           DUAL JOYSTICK
+        ============================================= */
+        .joystick-row {
+            display:flex; gap:10px; justify-content:space-around; align-items:center;
+            flex:1; min-height:0;
+        }
+        .joystick-wrap {
+            display:flex; flex-direction:column; align-items:center; gap:5px;
+        }
+        .joy-label {
+            font-family:var(--font-data); font-size:.6rem;
+            color:var(--txt-mid); letter-spacing:.14em;
+        }
+        .joy-hint {
+            font-family:var(--font-data); font-size:.55rem;
+            color:var(--txt-lo); letter-spacing:.08em;
+        }
+
+        .joystick {
+            position:relative;
+            width:108px; height:108px;
+            background: radial-gradient(circle at center, var(--bg-hover) 0%, var(--bg-void) 100%);
+            border:1px solid var(--border-hi);
+            border-radius:50%;
+            cursor:crosshair;
+            flex-shrink:0;
+            user-select:none;
+            box-shadow: 0 0 20px rgba(0,229,255,.06), inset 0 0 30px rgba(0,0,0,.4);
+        }
+        .joy-ring {
+            position:absolute; top:50%; left:50%;
+            border-radius:50%;
+            transform:translate(-50%,-50%);
+            pointer-events:none;
+        }
+        .joy-ring-outer {
+            width:90px; height:90px;
+            border:1px solid rgba(0,229,255,.18);
+        }
+        .joy-ring-inner {
+            width:50px; height:50px;
+            border:1px solid rgba(0,229,255,.1);
+        }
+        .joy-crosshair {
+            position:absolute; top:50%; left:50%;
+            transform:translate(-50%,-50%);
+            background:rgba(0,229,255,.12);
+            pointer-events:none;
+        }
+        .joy-ch-h { width:90px; height:1px; }
+        .joy-ch-v { width:1px; height:90px; }
+        .joy-handle {
+            position:absolute; top:50%; left:50%;
+            width:28px; height:28px;
+            background:var(--cyan);
+            border-radius:50%;
+            transform:translate(-50%,-50%);
+            box-shadow:0 0 14px var(--cyan-dim);
+            border:2px solid rgba(255,255,255,.7);
+            transition:box-shadow .1s;
+            pointer-events:none;
+        }
+
+        /* gimbal reset button */
+        .reset-gimbal-btn {
+            background:var(--bg-raised);
+            border:1px solid var(--border-hi);
+            color:var(--amber);
+            font-family:var(--font-display);
+            font-size:.58rem; font-weight:700; letter-spacing:.1em;
+            padding:4px 8px;
+            border-radius:var(--r-sm);
+            cursor:pointer;
+            align-self:stretch;
+            transition:all .15s;
+        }
+        .reset-gimbal-btn:hover { background:rgba(255,183,0,.15); box-shadow:0 0 10px rgba(255,183,0,.3); }
+
+        /* updated servo row to accommodate 3 items */
+        .servo-row {
+            display:grid; grid-template-columns:1fr 1fr auto; gap:6px; align-items:center;
+        }
+
+        /* Map placeholder: animated dot-grid */
+        .map-bg-canvas {
+            position:absolute; inset:0;
+            width:100%; height:100%;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="logo">
-                <span class="logo-icon"></span>
-                <h1>__THE NOMADER__</h1>
+<div class="cockpit">
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header class="hdr">
+        <div class="hdr-logo">⬡ THE NOMADER</div>
+        <div class="hdr-sep"></div>
+        <!-- controls.js expects id="connectionStatus" with .status-dot and .status-text children -->
+        <div class="connection-status hdr-status" id="connectionStatus">
+            <div class="status-dot dot"></div>
+            <span class="status-text" style="font-size:.68rem;letter-spacing:.06em;">CONNECTING...</span>
+        </div>
+        <div class="hdr-sep"></div>
+        <div style="font-family:var(--font-data);font-size:.62rem;color:var(--txt-mid);" id="sysTime">--:--:--</div>
+
+        <div class="hdr-stats">
+            <div class="hdr-stat">
+                <span class="hdr-stat-lbl">CPU</span>
+                <span class="hdr-stat-val" id="cpuUsage">--%</span>
             </div>
-            <div class="connection-status" id="connectionStatus">
-                <span class="status-dot"></span>
-                <span class="status-text">CONNECTING...</span>
+            <div class="hdr-stat">
+                <span class="hdr-stat-lbl">TEMP</span>
+                <span class="hdr-stat-val" id="cpuTemp">--°C</span>
             </div>
-            <div class="stats-panel">
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <span class="stat-label">CPU</span>
-                        <span class="stat-value" id="cpuUsage">--</span>
+            <div class="hdr-stat">
+                <span class="hdr-stat-lbl">RAM</span>
+                <span class="hdr-stat-val" id="ramUsage">--%</span>
+            </div>
+            <div class="hdr-stat">
+                <span class="hdr-stat-lbl">BATT</span>
+                <span class="hdr-stat-val" id="battLevel" style="color:var(--green);">--%</span>
+            </div>
+        </div>
+
+        <div class="hdr-sep"></div>
+        <button class="e-stop" id="emergencyStop">⬛ EMERGENCY RESET</button>
+    </header>
+
+    <!-- ══════════════ MAIN ROW ══════════════ -->
+    <div class="main-row">
+
+        <!-- CAMERA -->
+        <div class="panel">
+            <div class="panel-title">VISUAL FEED — CAM_01</div>
+            <div class="cam-wrap">
+                <img id="cameraFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed"
+                     onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%25%22 height=%22100%25%22><rect fill=%22%230b0f1c%22 width=%22100%25%22 height=%22100%25%22/><text x=%2250%25%22 y=%2250%25%22 font-family=%22monospace%22 font-size=%2214%22 fill=%22%236b82a8%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>NO SIGNAL</text></svg>'">
+                <div class="cam-hud">
+                    <div class="cam-hud-top">
+                        <div class="hud-chip">
+                            <span class="hud-chip-lbl">SPEED</span>
+                            <span class="hud-chip-val" id="speedDisplay">0</span>
+                        </div>
+                        <div class="hud-chip" style="align-items:flex-end;">
+                            <span class="hud-chip-lbl">HEADING</span>
+                            <span class="hud-chip-val" id="headingDisplay">0°</span>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">TEMP</span>
-                        <span class="stat-value" id="cpuTemp">--</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">RAM</span>
-                        <span class="stat-value" id="ramUsage">--</span>
+                    <div class="cam-hud-bot">
+                        <div class="hud-chip">
+                            <span class="hud-chip-lbl">REC</span>
+                            <span style="font-family:var(--font-data);font-size:.65rem;color:var(--red);display:flex;align-items:center;gap:4px;">
+                                <span style="width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blink .8s infinite;display:inline-block;"></span>LIVE
+                            </span>
+                        </div>
+                        <div class="hud-chip" style="align-items:flex-end;">
+                            <span class="hud-chip-lbl">UPTIME</span>
+                            <span style="font-family:var(--font-data);font-size:.65rem;color:var(--txt-mid);" id="uptimeDisplay">00:00:00</span>
+                        </div>
                     </div>
                 </div>
+                <div class="corner tl"></div>
+                <div class="corner tr"></div>
+                <div class="corner bl"></div>
+                <div class="corner br"></div>
             </div>
-            <div class="quick-actions">
-                <button class="action-btn emergency-btn" id="emergencyStop">
-                    <span class="btn-icon"></span>
-                    <span>EMERGENCY RESET</span>
-                </button>
-            </div>
-        </header>
+        </div>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <div class="main-grid">
-                <!-- Left: Camera Feed -->
-                <section class="camera-section">
-                    <div class="camera-container">
-                        <img id="cameraFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed">
-                        <div class="camera-overlay">
-                            <div class="hud-item">
-                                <span class="hud-label">SPEED</span>
-                                <span class="hud-value" id="speedDisplay">0</span>
-                            </div>
-                            <div class="hud-item">
-                                <span class="hud-label">HEADING</span>
-                                <span class="hud-value" id="headingDisplay">0°</span>
-                            </div>
-                        </div>
+        <!-- CONTROLS -->
+        <div class="panel">
+            <div class="panel-title">DRIVE CONTROLS</div>
+            <div class="ctrl-body">
+
+                <!-- command + motor readouts -->
+                <div class="motor-grid">
+                    <div class="motor-card">
+                        <span class="mc-lbl">LEFT MOTOR</span>
+                        <span class="mc-val" id="leftMotor">0</span>
+                        <div class="mc-bar"><div class="mc-bar-fill" id="leftBar"></div></div>
                     </div>
-                </section>
+                    <div class="motor-card">
+                        <span class="mc-lbl">RIGHT MOTOR</span>
+                        <span class="mc-val" id="rightMotor">0</span>
+                        <div class="mc-bar"><div class="mc-bar-fill" id="rightBar"></div></div>
+                    </div>
+                </div>
 
-                <!-- Right: Controls Panel -->
-                <section class="controls-panel">
-                    
-                    <div class="control-box">
-                        <h3 class="box-title">ROBOT CONTROL</h3>
-                        <div class="values-grid">
-                            <div class="value-display">
-                                <span class="value-label">LEFT</span>
-                                <span class="value-number" id="leftMotor">0</span>
-                            </div>
-                            <div class="value-display">
-                                <span class="value-label">PITCH</span>
-                                <span class="value-number" id="pitchDisplay">90</span>
-                                <span class="value-unit">°</span>
-                            </div>
-                            
+                <!-- current command chip -->
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <div class="motor-card" style="flex:1;flex-direction:row;justify-content:space-between;padding:5px 10px;">
+                        <span class="mc-lbl">CMD</span>
+                        <span id="commandDisplay" style="font-family:var(--font-display);font-size:.75rem;font-weight:700;color:var(--green);text-shadow:0 0 10px var(--green-dim);">HALT</span>
+                    </div>
+                    <div class="motor-card" style="flex:1;flex-direction:row;justify-content:space-between;padding:5px 10px;">
+                        <span class="mc-lbl">SPEED</span>
+                        <span id="speedDisplay" style="font-family:var(--font-display);font-size:.75rem;font-weight:700;color:var(--cyan);">0</span>
+                    </div>
+                </div>
+
+                <!-- dual joystick row -->
+                <div class="joystick-row">
+
+                    <!-- Drive joystick -->
+                    <div class="joystick-wrap">
+                        <span class="joy-label">DRIVE</span>
+                        <div class="joystick" id="driveJoystick">
+                            <div class="joy-ring joy-ring-outer"></div>
+                            <div class="joy-ring joy-ring-inner"></div>
+                            <div class="joy-crosshair joy-ch-h"></div>
+                            <div class="joy-crosshair joy-ch-v"></div>
+                            <div class="joy-handle" id="driveHandle"></div>
                         </div>
-                        <div class="values-grid">
-                            <div class="value-display">
-                                <span class="value-label">RIGHT</span>
-                                <span class="value-number" id="rightMotor">0</span>
-                            </div>
-                            <div class="value-display">
-                                <span class="value-label">YAW</span>
-                                <span class="value-number" id="yawDisplay">90</span>
-                                <span class="value-unit">°</span>
-                            </div>
-                        </div>
-                        <div class="keyboard-hints">
-                            <div class="hint-row">
-                                <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
-                                <pre>                            </pre>
-                                <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd>
-                            </div>
-                        </div>
-                        <br>
-                        <div class="slider-container">
-                            <input type="range" id="lightSlider" min="0" max="255" value="0" class="slider">
-                            <div class="slider-fill" id="lightFill"></div>
-                        </div>
-                        <div class="slider-value">
-                            <span id="lightValue">0</span>
-                            <span class="unit">/ 255</span>
-                        </div>
-                        <div class="keyboard-hints">
-                            <div class="hint-row">
-                                <kbd>Q</kbd> <span class="hint-text">Dim</span>
-                                <kbd>E</kbd> <span class="hint-text">Bright</span>
-                            </div>
-                        </div>
+                        <span class="joy-hint">WASD · drag</span>
                     </div>
 
-                   
+                    <!-- Gimbal joystick -->
+                    <div class="joystick-wrap">
+                        <span class="joy-label">GIMBAL</span>
+                        <div class="joystick" id="gimbalControl">
+                            <div class="joy-ring joy-ring-outer" style="border-color:rgba(255,183,0,.25);"></div>
+                            <div class="joy-ring joy-ring-inner" style="border-color:rgba(255,183,0,.15);"></div>
+                            <div class="joy-crosshair joy-ch-h" style="background:rgba(255,183,0,.18);"></div>
+                            <div class="joy-crosshair joy-ch-v" style="background:rgba(255,183,0,.18);"></div>
+                            <div class="joy-handle" id="gimbalHandle" style="background:var(--amber);box-shadow:0 0 14px rgba(255,183,0,.5);"></div>
+                        </div>
+                        <span class="joy-hint">↑↓←→ · drag</span>
+                    </div>
 
-                    
-                </section>
+                </div>
+
+                <!-- servo readouts + reset -->
+                <div class="servo-row">
+                    <div class="servo-card">
+                        <span class="sv-lbl">PITCH</span>
+                        <span class="sv-val" id="pitchDisplay">90</span><span class="sv-val" style="font-size:.7rem;color:var(--txt-mid);">°</span>
+                    </div>
+                    <div class="servo-card">
+                        <span class="sv-lbl">YAW</span>
+                        <span class="sv-val" id="yawDisplay">90</span><span class="sv-val" style="font-size:.7rem;color:var(--txt-mid);">°</span>
+                    </div>
+                    <button class="reset-gimbal-btn" id="resetGimbal">⟳ CTR</button>
+                </div>
+
+                <!-- light -->
+                <div class="light-section">
+                    <div class="light-header">
+                        <span>HEADLIGHT</span>
+                        <span class="light-val"><span id="lightValue">0</span> / 255</span>
+                    </div>
+                    <div class="slider-wrap">
+                        <div class="slider-fill-bar" id="lightFill"></div>
+                        <input type="range" class="lslider" id="lightSlider" min="0" max="255" value="0">
+                    </div>
+                    <div class="light-keys">
+                        <kbd>Q</kbd><span>Dim</span>
+                        <kbd>E</kbd><span>Bright</span>
+                    </div>
+                </div>
+
             </div>
-        </main>
-    </div>
+        </div>
 
-    <script src="{{ url_for('static', filename='js/controls.js') }}"></script>
+        <!-- MAP -->
+        <div class="panel">
+            <div class="panel-title">GPS — LIVE POSITION</div>
+            <div class="map-wrap" id="mapWrap">
+                <!-- Animated dot-grid background canvas -->
+                <canvas class="map-bg-canvas" id="mapCanvas"></canvas>
+
+                <!--
+                    Replace the canvas with a real map iframe once GPS is live:
+                    <iframe id="mapIframe"
+                        src="https://www.openstreetmap.org/export/embed.html?bbox=LON-0.002,LAT-0.002,LON+0.002,LAT+0.002&layer=mapnik&marker=LAT,LON"
+                        allowfullscreen>
+                    </iframe>
+                -->
+
+                <!-- rover marker (positioned via JS) -->
+                <div class="map-rover-marker" id="roverMarker" style="left:50%;top:50%;"></div>
+
+                <!-- coords HUD -->
+                <div class="map-coords">
+                    LAT <span id="gpsLat">---.------</span>&nbsp;&nbsp;
+                    LON <span id="gpsLon">---.------</span>
+                </div>
+
+                <!-- crosshair rings -->
+                <svg style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.12" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
+                    <circle cx="200" cy="150" r="40"  fill="none" stroke="#00e5ff" stroke-width="1"/>
+                    <circle cx="200" cy="150" r="80"  fill="none" stroke="#00e5ff" stroke-width=".6" stroke-dasharray="4 6"/>
+                    <circle cx="200" cy="150" r="120" fill="none" stroke="#00e5ff" stroke-width=".4" stroke-dasharray="2 8"/>
+                    <line x1="200" y1="0"   x2="200" y2="300" stroke="#00e5ff" stroke-width=".4"/>
+                    <line x1="0"   y1="150" x2="400" y2="150" stroke="#00e5ff" stroke-width=".4"/>
+                </svg>
+            </div>
+        </div>
+
+    </div><!-- /main-row -->
+
+    <!-- ══════════════ SHELL ROW ══════════════ -->
+    <div class="shell-row">
+
+        <!-- SHELL -->
+        <div class="shell-panel">
+            <div class="shell-titlebar">
+                <div class="shell-titlebar-dot r"></div>
+                <div class="shell-titlebar-dot y"></div>
+                <div class="shell-titlebar-dot g"></div>
+                <span class="shell-name">nomader@rover:~$ — REMOTE SHELL</span>
+            </div>
+            <div class="shell-output" id="shellOutput">
+                <div class="shell-line"><span class="prompt">nomader@rover:~$</span><span class="cmd"> system init</span></div>
+                <div class="shell-line"><span class="out">  ✓ Motors initialized</span></div>
+                <div class="shell-line"><span class="out">  ✓ Camera feed active</span></div>
+                <div class="shell-line"><span class="out">  ✓ GPS module online</span></div>
+                <div class="shell-line"><span class="info">  ⚑ Awaiting command...</span></div>
+            </div>
+            <div class="shell-input-row">
+                <span class="shell-prompt-sym">nomader@rover:~$</span>
+                <input type="text" id="shellInput" placeholder="enter command..." autocomplete="off" spellcheck="false">
+            </div>
+        </div>
+
+        <!-- TELEMETRY LOG -->
+        <div class="telem-panel">
+            <div class="panel-title" style="padding:5px 12px;">TELEMETRY STREAM</div>
+            <div class="telem-body" id="telemBody">
+                <!-- populated by JS -->
+            </div>
+        </div>
+
+    </div><!-- /shell-row -->
+
+</div><!-- /cockpit -->
+
+<!-- ══════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════ -->
+<script>
+/* ── clock ── */
+function tick() {
+    const n = new Date();
+    document.getElementById('sysTime').textContent = n.toTimeString().slice(0,8);
+}
+tick(); setInterval(tick, 1000);
+
+/* ── uptime ── */
+let startTime = Date.now();
+setInterval(() => {
+    const s = Math.floor((Date.now()-startTime)/1000);
+    const h = String(Math.floor(s/3600)).padStart(2,'0');
+    const m = String(Math.floor((s%3600)/60)).padStart(2,'0');
+    const sc = String(s%60).padStart(2,'0');
+    document.getElementById('uptimeDisplay').textContent = `${h}:${m}:${sc}`;
+}, 1000);
+
+/* ── telemetry stream (visual only — real data comes from controls.js socket events) ── */
+const telemBody = document.getElementById('telemBody');
+function pushTelem(key, val) {
+    const ts = new Date().toTimeString().slice(3,8);
+    const div = document.createElement('div');
+    div.className = 'telem-entry';
+    div.innerHTML = `<span class="telem-ts">${ts}</span><span class="telem-key">${String(key).padEnd(12)}</span><span class="telem-sep">→</span><span class="telem-vl">${val}</span>`;
+    telemBody.appendChild(div);
+    if(telemBody.children.length > 100) telemBody.removeChild(telemBody.firstChild);
+    telemBody.scrollTop = telemBody.scrollHeight;
+}
+// expose globally so controls.js / shell can call it
+window.pushTelem = pushTelem;
+
+/* ── shell ── */
+const shellOutput = document.getElementById('shellOutput');
+const shellInput  = document.getElementById('shellInput');
+const cmdHistory = []; let histIdx = -1;
+
+function shellPrint(text, cls='out') {
+    const div = document.createElement('div');
+    div.className = 'shell-line';
+    div.innerHTML = `<span class="${cls}">  ${text}</span>`;
+    shellOutput.appendChild(div);
+    shellOutput.scrollTop = shellOutput.scrollHeight;
+}
+window.shellPrint = shellPrint;
+
+shellInput.addEventListener('keydown', e => {
+    if(e.key === 'Enter') {
+        const cmd = shellInput.value.trim(); if(!cmd) return;
+        cmdHistory.unshift(cmd); histIdx = -1;
+        const div = document.createElement('div');
+        div.className = 'shell-line';
+        div.innerHTML = `<span class="prompt">nomader@rover:~$</span><span class="cmd"> ${cmd}</span>`;
+        shellOutput.appendChild(div);
+        shellOutput.scrollTop = shellOutput.scrollHeight;
+        if(cmd==='clear'||cmd==='cls')    shellOutput.innerHTML='';
+        else if(cmd==='help')             shellPrint('cmds: status | motors | gimbal | clear | reboot', 'info');
+        else if(cmd==='status')           shellPrint('All systems nominal ✓', 'out');
+        else if(cmd==='motors')           shellPrint(`L=${document.getElementById('leftMotor').textContent}  R=${document.getElementById('rightMotor').textContent}`, 'out');
+        else if(cmd==='gimbal')           shellPrint(`pitch=${document.getElementById('pitchDisplay').textContent}  yaw=${document.getElementById('yawDisplay').textContent}`, 'out');
+        else                              shellPrint(`Sent → ${cmd}`, 'out');
+        shellInput.value = '';
+        pushTelem('CMD', cmd.slice(0,16));
+    } else if(e.key==='ArrowUp')   { histIdx=Math.min(histIdx+1,cmdHistory.length-1); shellInput.value=cmdHistory[histIdx]||''; e.preventDefault(); }
+      else if(e.key==='ArrowDown') { histIdx=Math.max(histIdx-1,-1); shellInput.value=histIdx<0?'':cmdHistory[histIdx]; e.preventDefault(); }
+});
+
+/* ── map canvas ── */
+const canvas  = document.getElementById('mapCanvas');
+const mapWrap = document.getElementById('mapWrap');
+const ctx = canvas.getContext('2d');
+let roverPos = {x:.5, y:.5}, roverTarget = {x:.5, y:.5};
+function resizeCanvas() { canvas.width=mapWrap.offsetWidth; canvas.height=mapWrap.offsetHeight; }
+resizeCanvas(); new ResizeObserver(resizeCanvas).observe(mapWrap);
+let drift=0;
+function drawMap() {
+    const w=canvas.width, h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#060c18'; ctx.fillRect(0,0,w,h);
+    const step=24;
+    for(let x=0;x<w;x+=step) for(let y=0;y<h;y+=step) {
+        ctx.beginPath(); ctx.arc(x,y,1,0,Math.PI*2);
+        ctx.fillStyle='rgba(0,229,255,0.12)'; ctx.fill();
+    }
+    roverPos.x += (roverTarget.x-roverPos.x)*.02;
+    roverPos.y += (roverTarget.y-roverPos.y)*.02;
+    drift+=.004;
+    const rx=roverPos.x*w+Math.sin(drift*1.3)*3;
+    const ry=roverPos.y*h+Math.cos(drift)*3;
+    ctx.beginPath(); ctx.arc(rx,ry,40,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,229,255,0.04)'; ctx.fill();
+    requestAnimationFrame(drawMap);
+}
+drawMap();
+setInterval(()=>{
+    const mk=document.getElementById('roverMarker');
+    const w=mapWrap.offsetWidth, h=mapWrap.offsetHeight;
+    mk.style.left=(roverPos.x*w+Math.sin(drift*1.3)*3)+'px';
+    mk.style.top =(roverPos.y*h+Math.cos(drift)*3)+'px';
+},30);
+// expose for GPS updates from controls.js / socket
+window.setRoverGPS = (lat, lon) => {
+    document.getElementById('gpsLat').textContent = lat.toFixed(6);
+    document.getElementById('gpsLon').textContent = lon.toFixed(6);
+    // TODO: convert lat/lon to normalised x/y for your bounding box
+    // roverTarget = { x: normX, y: normY };
+};
+
+/* ── patch controls.js updateDisplays to also refresh command chip colour ── */
+document.addEventListener('DOMContentLoaded', () => {
+    const cmdEl = document.getElementById('commandDisplay');
+    if(!cmdEl) return;
+    const moveCmds = new Set(['forward','backward','left','right','arc_left','arc_right',
+                               'arc_left_forward','arc_right_forward','arc_left_backward','arc_right_backward']);
+    const observer = new MutationObserver(() => {
+        const txt = cmdEl.textContent.toLowerCase();
+        cmdEl.style.color = txt==='halt'||txt==='' ? 'var(--txt-mid)'
+                          : moveCmds.has(txt) ? 'var(--green)' : 'var(--amber)';
+    });
+    observer.observe(cmdEl, { childList:true, characterData:true, subtree:true });
+});
+</script>
+
+<script src="{{ url_for('static', filename='js/controls.js') }}"></script>
 </body>
 </html>
