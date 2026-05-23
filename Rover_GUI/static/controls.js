@@ -19,10 +19,11 @@ const state = {
     keysPressed: new Set()
 };
 
-// Socket.IO connection
+// Initialize socket connection
 const socket = io();
+window.socket = socket; // Expose for index.html
 
-// Control parameters
+// Socket connection handlersameters
 const MOTOR_MAX = 255;
 const MOTOR_STEP = 15;
 const GIMBAL_STEP = 5;
@@ -68,6 +69,27 @@ function initializeSocketIO() {
     socket.on('state_update', (data) => {
         // Update UI with rover state
         updateDisplays(data);
+    });
+
+    // NOVA Event Handlers
+    socket.on('nova_status', (data) => {
+        const statusEl = document.getElementById('novaStatus');
+        if (statusEl) {
+            statusEl.textContent = data.status.toUpperCase();
+            if (data.status === 'idle') {
+                statusEl.style.color = 'var(--amber)';
+            } else if (data.status.startsWith('Error') || data.status.startsWith('Blocked') || data.status.startsWith('Stuck')) {
+                statusEl.style.color = 'var(--red)';
+            } else {
+                statusEl.style.color = 'var(--cyan)';
+            }
+        }
+    });
+
+    socket.on('nova_chat', (data) => {
+        if (window.shellPrint) {
+            window.shellPrint(`${data.sender}: ${data.message}`, 'info');
+        }
     });
 
     socket.on('stats_update', (data) => {
@@ -234,6 +256,11 @@ function updateDriveFromJoystick(x, y) {
         }
     }
     
+    const novaToggle = document.getElementById('novaToggle');
+    if (novaToggle && novaToggle.checked) {
+        return; // Ignore manual drive commands in AUTO MODE
+    }
+    
     state.command = command;
     state.speed = speed;
     state.bias = bias;
@@ -379,6 +406,11 @@ function processKeyboardInput() {
         command = 'left';
     } else if (keys.has('d')) {
         command = 'right';
+    }
+    
+    const novaToggle = document.getElementById('novaToggle');
+    if (novaToggle && novaToggle.checked) {
+        return; // Ignore keyboard drive commands in AUTO MODE
     }
     
     // Update state and send command if changed
@@ -584,3 +616,18 @@ document.body.addEventListener('touchmove', (e) => {
         e.preventDefault();
     }
 }, { passive: false });
+
+// Handle NOVA Toggle
+document.addEventListener('DOMContentLoaded', () => {
+    const novaToggle = document.getElementById('novaToggle');
+    if (novaToggle) {
+        novaToggle.addEventListener('change', (e) => {
+            if (!e.target.checked) {
+                // If turning AUTO MODE off, send a stop command to NOVA
+                if (window.socket) {
+                    window.socket.emit('nova_command', {command: 'stop immediately and halt all tasks'});
+                }
+            }
+        });
+    }
+});

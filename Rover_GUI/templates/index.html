@@ -838,24 +838,26 @@
     <!-- ══════════════ SHELL ROW ══════════════ -->
     <div class="shell-row">
 
-        <!-- SHELL -->
+        <!-- SHELL / NOVA CHAT -->
         <div class="shell-panel">
             <div class="shell-titlebar">
                 <div class="shell-titlebar-dot r"></div>
                 <div class="shell-titlebar-dot y"></div>
                 <div class="shell-titlebar-dot g"></div>
-                <span class="shell-name">nomader@rover:~$ — REMOTE SHELL</span>
+                <span class="shell-name">NOVA — Agent Interface</span>
+                <label style="margin-left:15px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" id="novaToggle" checked style="accent-color: var(--cyan);">
+                    <span style="font-family:var(--font-data); font-size:0.6rem; color:var(--cyan);">AUTO MODE</span>
+                </label>
+                <span id="novaStatus" style="margin-left:auto; font-family:var(--font-data); font-size:0.6rem; color:var(--amber);">IDLE</span>
             </div>
             <div class="shell-output" id="shellOutput">
-                <div class="shell-line"><span class="prompt">nomader@rover:~$</span><span class="cmd"> system init</span></div>
-                <div class="shell-line"><span class="out">  ✓ Motors initialized</span></div>
-                <div class="shell-line"><span class="out">  ✓ Camera feed active</span></div>
-                <div class="shell-line"><span class="out">  ✓ GPS module online</span></div>
-                <div class="shell-line"><span class="info">  ⚑ Awaiting command...</span></div>
+                <div class="shell-line"><span class="prompt">NOVA</span><span class="cmd"> System Online.</span></div>
+                <div class="shell-line"><span class="info">  ⚑ How can I help you navigate today?</span></div>
             </div>
             <div class="shell-input-row">
-                <span class="shell-prompt-sym">nomader@rover:~$</span>
-                <input type="text" id="shellInput" placeholder="enter command..." autocomplete="off" spellcheck="false">
+                <span class="shell-prompt-sym">USER ></span>
+                <input type="text" id="shellInput" placeholder="Command NOVA (e.g. 'scan this room')..." autocomplete="off" spellcheck="false">
             </div>
         </div>
 
@@ -926,15 +928,17 @@ shellInput.addEventListener('keydown', e => {
         cmdHistory.unshift(cmd); histIdx = -1;
         const div = document.createElement('div');
         div.className = 'shell-line';
-        div.innerHTML = `<span class="prompt">nomader@rover:~$</span><span class="cmd"> ${cmd}</span>`;
+        div.innerHTML = `<span class="prompt" style="color:var(--cyan)">USER ></span><span class="cmd"> ${cmd}</span>`;
         shellOutput.appendChild(div);
         shellOutput.scrollTop = shellOutput.scrollHeight;
-        if(cmd==='clear'||cmd==='cls')    shellOutput.innerHTML='';
-        else if(cmd==='help')             shellPrint('cmds: status | motors | gimbal | clear | reboot', 'info');
-        else if(cmd==='status')           shellPrint('All systems nominal ✓', 'out');
-        else if(cmd==='motors')           shellPrint(`L=${document.getElementById('leftMotor').textContent}  R=${document.getElementById('rightMotor').textContent}`, 'out');
-        else if(cmd==='gimbal')           shellPrint(`pitch=${document.getElementById('pitchDisplay').textContent}  yaw=${document.getElementById('yawDisplay').textContent}`, 'out');
-        else                              shellPrint(`Sent → ${cmd}`, 'out');
+        
+        if(cmd==='clear'||cmd==='cls') { shellOutput.innerHTML=''; }
+        else {
+            // Emit to server
+            if (window.socket) {
+                window.socket.emit('nova_command', {command: cmd});
+            }
+        }
         shellInput.value = '';
         pushTelem('CMD', cmd.slice(0,16));
     } else if(e.key==='ArrowUp')   { histIdx=Math.min(histIdx+1,cmdHistory.length-1); shellInput.value=cmdHistory[histIdx]||''; e.preventDefault(); }
