@@ -12,8 +12,14 @@ import os
 
 # Import rover control modules
 from helpers.serialcom import Robot
-from helpers.camera import CameraHelper
+from helpers.camera import WebcamHelper
 from helpers.stats import system
+
+# Import NOVA Agent
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from NOVA.agent import NovaAgent
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'nomader-secret-key'
@@ -21,8 +27,12 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Global rover instance
 rover = None
+nova_agent = None
 rover_lock = threading.Lock()
-camera_server = CameraHelper()
+camera_server = WebcamHelper()
+
+def send_ws_callback(event, data):
+    socketio.emit(event, data)
 
 # Control state
 control_state = {
@@ -40,11 +50,17 @@ global_speed = 254
 
 def initialize_rover():
     """Initialize rover connection"""
-    global rover
+    global rover, nova_agent
     try:
         rover = Robot(port='/dev/ttyUSB0', baud_rate=115200)
         control_state['connected'] = True
         print("✓ Rover connected successfully")
+        
+        # Start NOVA Agent
+        nova_agent = NovaAgent(robot_interface=rover, camera_interface=camera_server, send_ws_callback=send_ws_callback)
+        nova_agent.start()
+        print("✓ NOVA Agent started")
+        
         return True
     except Exception as e:
         print(f"✗ Rover connection failed: {e}")
@@ -232,6 +248,14 @@ def handle_reset_gimbal():
             rover.gimbal.reset()
     
     emit('state_update', control_state, broadcast=True)
+
+@socketio.on('nova_command')
+def handle_nova_command(data):
+    """Receive a natural language command for NOVA"""
+    if nova_agent:
+        command = data.get("command", "")
+        if command:
+            nova_agent.submit_command(command)
 
 def stats_broadcast_thread():
     """Background thread to broadcast system stats"""

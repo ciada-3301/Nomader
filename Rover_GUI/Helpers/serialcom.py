@@ -39,6 +39,7 @@ class Robot:
         self.pitch = 90
         self.yaw = 90
         self.light = 0
+        self.last_distance = -1
     
     def send_command(self, left_speed, right_speed, pitch, yaw, light):
         
@@ -60,6 +61,13 @@ class Robot:
         
         if self.serial.in_waiting:
             response = self.serial.readline().decode('utf-8').strip()
+            if response.startswith("OK,"):
+                parts = response.split(",")
+                if len(parts) > 1:
+                    try:
+                        self.last_distance = int(parts[1])
+                    except ValueError:
+                        pass
             return response
         return None
     
