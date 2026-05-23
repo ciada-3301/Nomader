@@ -12,6 +12,10 @@ AF_DCMotor lightMotor(1);  // M1 port (using motor port for light control)
 Servo pitchServo;
 Servo yawServo;
 
+// Ultrasonic Sensor
+#define TRIG_PIN 22
+#define ECHO_PIN 23
+
 void setup() {
   Serial.begin(115200);
 
@@ -22,6 +26,10 @@ void setup() {
   // Initial positions
   pitchServo.write(90);
   yawServo.write(90);
+
+  // Setup Ultrasonic pins
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 
   Serial.println("Arduino Motor Controller Ready");
 }
@@ -54,7 +62,25 @@ void loop() {
     lightMotor.setSpeed(constrain(v[4], 0, 255));
     lightMotor.run(FORWARD);
 
-    Serial.println("OK");
+    // 5. Read Ultrasonic Sensor
+    long duration, distance;
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(2);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+    
+    // 20ms timeout (roughly 340cm max range)
+    duration = pulseIn(ECHO_PIN, HIGH, 20000); 
+    if (duration == 0) {
+      distance = -1; // Out of range or no echo
+    } else {
+      distance = duration / 58;
+    }
+
+    // Return OK with distance
+    Serial.print("OK,");
+    Serial.println(distance);
   }
 }
 
