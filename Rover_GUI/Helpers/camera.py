@@ -100,6 +100,10 @@ class WebcamHelper:
 
     def generate_frames(self):
         """Generator that yields JPEG-encoded frames for web streaming."""
+        # NOTE: no finally/self.stop() here — the camera is a shared resource.
+        # Releasing it on stream drop (e.g. browser refresh) would make it
+        # unavailable to the NOVA agent and to the next page load.
+        # Call stop() explicitly on application shutdown only.
         try:
             while self.cap and self.cap.isOpened():
                 success, frame = self.cap.read()
@@ -113,8 +117,6 @@ class WebcamHelper:
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         except Exception as e:
             print(f"Webcam streaming error: {e}")
-        finally:
-            self.stop()
 
     def stop(self):
         if self.cap:
