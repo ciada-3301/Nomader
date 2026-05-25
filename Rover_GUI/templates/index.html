@@ -673,6 +673,7 @@
             <div class="cam-wrap">
                 <img id="cameraFeed" src="{{ url_for('video_feed') }}" alt="Camera Feed"
                      onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%25%22 height=%22100%25%22><rect fill=%22%230b0f1c%22 width=%22100%25%22 height=%22100%25%22/><text x=%2250%25%22 y=%2250%25%22 font-family=%22monospace%22 font-size=%2214%22 fill=%22%236b82a8%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22>NO SIGNAL</text></svg>'">
+                <canvas id="bboxCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;"></canvas>
                 <div class="cam-hud">
                     <div class="cam-hud-top">
                         <div class="hud-chip">
