@@ -31,8 +31,6 @@ class ScanFor(Tool):
         self.context.send_status(f"Scanning for {object_name}...")
 
         found = False
-        best_conf = 0.0
-        best_dist = 99.0
 
         # Simple pan scan
         pan_angles = [90, 60, 30, 60, 90, 120, 150, 120, 90]
@@ -48,60 +46,34 @@ class ScanFor(Tool):
 
             frame = self.context.camera.get_frame()
             if frame is not None:
-                detections = self.context.detector.detect(frame)
-                for det in detections:
-                    if object_name.lower() in det["class"].lower():
-                        found = True
-                        if det["confidence"] > best_conf:
-                            best_conf = det["confidence"]
-                            best_dist = det["distance_m"]
-
-                            pose = self.context.odometry.get_pose()
-                            self.context.memory.log_sighting(
-                                object_name, pose[0], pose[1],
-                                f"Seen at distance {best_dist}m, angle {angle}."
-                            )
+                bbox = self.context.get_vlm_bounding_box(frame, object_name)
+                if bbox is not None:
+                    found = True
+                    pose = self.context.odometry.get_pose()
+                    self.context.memory.log_sighting(
+                        object_name, pose[0], pose[1],
+                        f"Seen at pan angle {angle}deg, bbox {bbox}."
+                    )
+                    # Broadcast bounding box to webapp overlay
+                    if self.context.send_ws_callback:
+                        x, y, w, h = bbox
+                        fh, fw = frame.shape[:2]
+                        self.context.send_ws_callback("nova_detection", {
+                            "label": object_name,
+                            "x": x / fw, "y": y / fh,
+                            "w": w / fw, "h": h / fh,
+                        })
+                    break
 
         if self.context.robot:
             self.context.robot.gimbal.reset()
 
         if found:
-            return ToolResult(True, f"Found {object_name} at distance {best_dist}m (confidence: {best_conf:.2f}).")
+            return ToolResult(True, f"Found {object_name}.")
         else:
             return ToolResult(False, f"Could not find any {object_name} in the area.")
 
 
-class ScanRoom(Tool):
-    name = "scan_room"
-    description = "Perform a 360 degree scan to map obstacles and catalog all visible objects."
-    parameters = {
-        "type": "object",
-        "properties": {}
-    }
-
-    async def execute(self) -> ToolResult:
-        self.context.send_status("Scanning room...")
-
-        objects_found = set()
-
-        if self.context.robot:
-            speed = self.context.config.navigation.turn_speed
-            self.context.robot.motor.drive(speed, -speed, 0)
-
-            for _ in range(12):
-                if not self.context.is_running:
-                    break
-
-                await asyncio.sleep(0.5)
-                frame = self.context.camera.get_frame()
-                if frame is not None:
-                    detections = self.context.detector.detect(frame)
-                    for det in detections:
-                        objects_found.add(det["class"])
-
-            self.context.robot.motor.halt()
-
-        return ToolResult(True, f"Scan complete. Objects detected: {', '.join(objects_found) if objects_found else 'None'}.")
 
 
 class LockAndTrack(Tool):
@@ -126,11 +98,47 @@ class LockAndTrack(Tool):
         if vlm_frame is None:
             return ToolResult(False, "Failed to get camera frame.")
 
-        bbox = self.context.planner.get_vlm_bounding_box(vlm_frame, object_description)
+        bbox = self.context.get_vlm_bounding_box(vlm_frame, object_description)
         if not bbox:
             return ToolResult(False, f"Could not find '{object_description}' in the camera view.")
 
+        # ── Guard 1: object must be sufficiently centred ─────────────────────
+        # If the bbox centre is outside the middle 50% of the frame width, the
+        # object is at the edge and partially out of view. Tracking a sliver is
+        # unreliable and the stop condition can fire immediately on a false positive.
+        # Return a clear failure so Nova can spin to centre the object first.
+        _fh, _fw = vlm_frame.shape[:2]
+        _bx, _by, _bw, _bh = bbox
+        _box_cx = _bx + _bw / 2
+        _left_limit  = _fw * 0.25
+        _right_limit = _fw * 0.75
+        if _box_cx < _left_limit or _box_cx > _right_limit:
+            return ToolResult(
+                False,
+                f"Object is at frame edge (center_x={_box_cx:.0f}, frame_w={_fw}). "
+                f"Use spin_search to center it before approaching."
+            )
+
+        # ── Guard 2: bbox must be large enough to track reliably ──────────────
+        # A bbox narrower than 8% of frame width gives too few feature points
+        # for LK optical flow. Reject it so Nova doesn't attempt a doomed track.
+        MIN_BBOX_WIDTH_RATIO  = 0.08
+        MIN_BBOX_HEIGHT_RATIO = 0.08
+        if _bw < _fw * MIN_BBOX_WIDTH_RATIO or _bh < _fh * MIN_BBOX_HEIGHT_RATIO:
+            return ToolResult(
+                False,
+                f"Object bbox too small to track reliably (w={_bw}px, h={_bh}px). "
+                f"Move closer or use scan_for instead."
+            )
+
         self.context.send_status(f"Found '{object_description}'. Locking tracker...")
+        # Broadcast bounding box to webapp overlay
+        if self.context.send_ws_callback:
+            self.context.send_ws_callback("nova_detection", {
+                "label": object_description,
+                "x": _bx / _fw, "y": _by / _fh,
+                "w": _bw / _fw, "h": _bh / _fh,
+            })
 
         # ── Step 2: Grab a FRESH frame for tracker initialisation ─────────────
         # The VLM call is a synchronous LLM round-trip that can take 2-5 seconds.
@@ -162,8 +170,21 @@ class LockAndTrack(Tool):
         frame_h, frame_w = init_frame_bgr.shape[:2]
         center_x = frame_w / 2
 
+        # Run at 60% of cruise speed while tracking.
+        # Full cruise speed causes motion blur that kills LK optical flow.
+        TRACKING_SPEED = int(self.context.config.navigation.cruise_speed * 0.6)
+
+        # Deadzone: ignore errors smaller than 5% of frame width.
+        # Prevents constant jittery corrections when the object is roughly centred.
+        DEADZONE_PX = frame_w * 0.05
+
         stopped = False
-        reason = "Unknown"
+        reason  = "Unknown"
+
+        # Re-lock threshold: if the tracker retains fewer than this fraction of
+        # its original points, trigger a VLM re-lock before full loss occurs.
+        RELOCK_THRESHOLD = 0.20
+        initial_points   = tracker.point_count()   # snapshot at init
 
         # ── Step 5: Tracking + approach loop ─────────────────────────────────
         while self.context.is_running:
@@ -178,29 +199,125 @@ class LockAndTrack(Tool):
 
             success, bbox = tracker.update(bgr_frame)
 
+            # ── VLM re-lock when tracker is degrading ─────────────────────────
+            # If tracked points have dropped below RELOCK_THRESHOLD (20%) of the
+            # original count, re-query the VLM now — while the rover is still close
+            # enough to see the object — rather than waiting for full loss.
+            if success and initial_points > 0:
+                surviving = tracker.point_count()
+                if surviving / initial_points < RELOCK_THRESHOLD:
+                    print(f"[LockAndTrack] Tracker degrading ({surviving}/{initial_points} pts) — re-locking via VLM...")
+                    self.context.robot.motor.halt()
+                    relock_frame = self.context.camera.get_frame()
+                    if relock_frame is not None:
+                        new_bbox = self.context.get_vlm_bounding_box(relock_frame, object_description)
+                        if new_bbox:
+                            tracker.stop()
+                            tracker = VisualTracker()
+                            relock_bgr = _to_bgr(relock_frame)
+                            if tracker.initialize(relock_bgr, new_bbox):
+                                bbox = new_bbox
+                                initial_points = tracker.point_count()
+                                bgr_frame = relock_bgr
+                                print(f"[LockAndTrack] Re-lock successful with {initial_points} points.")
+                                if self.context.send_ws_callback:
+                                    _bx, _by, _bw, _bh = new_bbox
+                                    self.context.send_ws_callback("nova_detection", {
+                                        "label": object_description,
+                                        "x": _bx / frame_w, "y": _by / frame_h,
+                                        "w": _bw / frame_w, "h": _bh / frame_h,
+                                    })
+                            else:
+                                reason = "Re-lock failed — tracker could not reinitialize."
+                                break
+                        else:
+                            reason = "Re-lock failed — VLM could not find object for re-lock."
+                            break
+
             if not success:
                 reason = "Lost track of object."
                 break
 
             x, y, w, h = bbox
-            fill_ratio = (w * h) / (frame_w * frame_h)
 
-            if fill_ratio >= screen_fill_threshold:
+            # ── Stop condition ────────────────────────────────────────────────
+            # Two conditions must BOTH be true to declare arrival:
+            #   1. bbox bottom >= 75% of frame height  (close enough)
+            #   2. bbox centre is within the middle 50% of frame width (centred)
+            #
+            # Requiring both prevents false positives when a partially-visible
+            # edge object satisfies the bottom threshold while barely in frame.
+            reached = False
+
+            bbox_bottom  = y + h
+            box_center_x = x + w / 2
+            frame_bottom = frame_h * 0.75
+            centre_left  = frame_w * 0.25
+            centre_right = frame_w * 0.75
+
+            is_close    = bbox_bottom  >= frame_bottom
+            is_centred  = centre_left  <= box_center_x <= centre_right
+
+            if is_close and is_centred:
+                reached = True
+                reason  = (
+                    f"Reached object — bbox bottom at {bbox_bottom}px "
+                    f"(threshold {frame_bottom:.0f}px), centred at x={box_center_x:.0f}."
+                )
+            elif is_close and not is_centred:
+                # Close but not centred — keep steering, don't stop yet
+                print(f"[LockAndTrack] Close but not centred (cx={box_center_x:.0f}) — continuing to steer.")
+
+            if not reached:
+                try:
+                    dist_cm = self.context.obstacle_detector.last_distance_cm
+                    stop_cm = self.context.config.navigation.obstacle_stop_cm * 2
+                    if 0 < dist_cm < stop_cm:
+                        reached = True
+                        reason  = f"Reached object — ultrasonic distance {dist_cm:.0f}cm."
+                except AttributeError:
+                    pass
+
+            if reached:
+                self.context.robot.motor.halt()
                 stopped = True
-                reason = f"Reached object (fills {fill_ratio*100:.1f}% of view)."
                 break
 
-            # Proportional steering: positive error → object is right → turn right
-            box_center_x = x + w / 2
+            # Broadcast live tracker bbox to webapp overlay every frame
+            if self.context.send_ws_callback:
+                self.context.send_ws_callback("nova_detection", {
+                    "label": object_description,
+                    "x": x / frame_w, "y": y / frame_h,
+                    "w": w / frame_w, "h": h / frame_h,
+                })
+
+            fill_ratio = (w * h) / (frame_w * frame_h)
+
+            # Proportional steering.
+            # Positive error → object is right of centre → increase left speed to turn right.
+            # box_center_x already computed above in stop condition block.
             error = box_center_x - center_x
-            turn_correction = int((error / frame_w) * self.context.config.navigation.turn_speed * 1.5)
 
-            speed = self.context.config.navigation.cruise_speed
-            max_s = self.context.config.navigation.max_speed
-            left_speed  = max(-max_s, min(max_s, speed + turn_correction))
-            right_speed = max(-max_s, min(max_s, speed - turn_correction))
+            # Apply deadzone — zero correction when error is small
+            if abs(error) < DEADZONE_PX:
+                turn_correction = 0
+            else:
+                # Scale so full frame-width offset → full turn_speed
+                turn_correction = int(
+                    (error / center_x) * self.context.config.navigation.turn_speed
+                )
 
-            self.context.robot.motor.drive(right_speed, left_speed, 0)
+            max_s       = self.context.config.navigation.max_speed
+            left_speed  = max(-max_s, min(max_s, TRACKING_SPEED + turn_correction))
+            right_speed = max(-max_s, min(max_s, TRACKING_SPEED - turn_correction))
+
+            print(
+                f"[LockAndTrack] box_cx={box_center_x:.0f} err={error:.0f} "
+                f"corr={turn_correction} L={left_speed} R={right_speed} "
+                f"fill={fill_ratio:.2f} bbox_bottom={y+h}"
+            )
+
+            self.context.robot.motor.drive(left_speed, right_speed, 0)
             await asyncio.sleep(0.05)   # 20 Hz
 
         self.context.robot.motor.halt()
