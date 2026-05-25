@@ -1,15 +1,13 @@
 """
 NOVA Configuration
 ------------------
-Central configuration dataclass for all NOVA subsystems.
-Loads secrets from .env file in project root.
+Central config for all NOVA subsystems. Secrets loaded from .env.
 """
 
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Load .env if python-dotenv is available
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -19,68 +17,73 @@ except ImportError:
 
 @dataclass
 class VisionConfig:
-    """Camera and object detection settings."""
     camera_resolution: tuple = (640, 480)
     camera_fps: int = 15
-    detection_model: str = "yolov8n"           # yolov8n, yolov8n-seg, mobilenet_ssd
-    detection_confidence: float = 0.45
-    detection_iou: float = 0.5
-    detection_input_size: int = 320            # YOLO input size (smaller = faster)
-    obstacle_floor_fraction: float = 0.6       # bottom 60% of frame for floor obstacles
+    # Visual obstacle detection (floor-plane analysis)
+    floor_fraction: float = 0.55       # bottom % of frame = floor zone
+    edge_density_threshold: float = 0.08  # fraction of edge pixels that signals an obstacle
+    obstacle_width_min_frac: float = 0.10  # obstacle must span >= 10% of frame width
 
 
 @dataclass
 class NavigationConfig:
-    """Path planning and motion control settings."""
     # Occupancy grid
-    grid_resolution_cm: float = 5.0            # cm per cell
-    grid_size_cells: int = 400                 # 400x400 = 20m x 20m arena
-    grid_origin_cell: tuple = (200, 200)       # robot starts at center
+    grid_resolution_cm: float = 5.0
+    grid_size_cells: int = 400
+    grid_origin_cell: tuple = (200, 200)
 
-    # Motion
-    max_speed: int = 200                       # PWM 0-255
-    cruise_speed: int = 150                    # normal navigation speed
-    turn_speed: int = 120                      # in-place rotation speed
-    min_speed: int = 80                        # below this motors stall
+    # Motion — tuned for 6WD
+    max_speed: int = 200
+    cruise_speed: int = 150
+    turn_speed: int = 120
+    min_speed: int = 80
 
-    # Obstacle avoidance (VFH)
-    vfh_sector_count: int = 36                 # 10° per sector
-    vfh_threshold: float = 0.3                 # density threshold for blocked sector
-    obstacle_stop_cm: float = 20.0             # emergency stop distance
-    obstacle_slow_cm: float = 50.0             # slow down distance
+    # VFH obstacle avoidance
+    vfh_sector_count: int = 36
+    vfh_threshold: float = 0.3
+
+    # Obstacle distances — visual-only (no ultrasonic)
+    # These are "visual proximity scores" (0–1) not cm
+    obstacle_stop_score: float = 0.65
+    obstacle_slow_score: float = 0.35
 
     # Waypoint following
-    waypoint_reach_cm: float = 15.0            # close enough to advance to next wp
-    stuck_timeout_s: float = 8.0               # re-plan if no progress for this long
+    waypoint_reach_cm: float = 15.0
+    stuck_timeout_s: float = 8.0
     max_replan_attempts: int = 3
+    control_hz: float = 10.0
 
-    # Control loop
-    control_hz: float = 10.0                   # motor command rate
+    # Left/right correction factor
+    # NOTE: physical motor wiring is swapped — drive(right_pwm, left_pwm)
+    # This is a calibration scalar for individual motor bias correction.
+    left_motor_trim: float = 1.0   # multiply left PWM by this
+    right_motor_trim: float = 1.0  # multiply right PWM by this
 
 
 @dataclass
 class PlannerConfig:
-    """LLM task planner settings."""
     llm_base_url: str = "https://ollama.com/v1"
-    llm_api_key: str = ""                      # loaded from env
-    llm_model: str = "gemma4:31b-cloud"                # Ollama model name
-    llm_temperature: float = 0.1               # low temp for deterministic planning
-    llm_max_tokens: int = 1024
-    llm_timeout_s: float = 30.0
+    llm_api_key: str = ""
+    llm_model: str = "gemma4:31b-cloud"
+    llm_temperature: float = 0.15
+    llm_max_tokens: int = 2048
+    llm_timeout_s: float = 45.0
+    max_iterations: int = 30        # max tool calls before forced stop
+    max_retries: int = 5            # max review-triggered retries
+    mission_timeout_s: float = 180  # hard wall
 
     def __post_init__(self):
-        # Load API key from environment if not set
         if not self.llm_api_key:
             self.llm_api_key = os.environ.get("NOVA_API_KEY", "ollama")
 
 
 @dataclass
 class MemoryConfig:
-    """Persistent memory settings."""
-    memory_dir: str = ""                       # defaults to ~/.nova/
+    memory_dir: str = ""
     autosave_interval_s: int = 30
     max_task_history: int = 200
     max_object_sightings: int = 500
+    hot_memory_max_turns: int = 10   # rolling window of recent actions
 
     def __post_init__(self):
         if not self.memory_dir:
@@ -89,32 +92,30 @@ class MemoryConfig:
 
 @dataclass
 class HardwareConfig:
-    """Serial and sensor settings."""
     serial_port: str = "/dev/ttyUSB0"
     baud_rate: int = 115200
     serial_timeout: float = 1.0
 
-    # Ultrasonic sensor (readings come from Arduino)
-    ultrasonic_enabled: bool = True
+    ultrasonic_enabled: bool = False   # disabled per user preference
     ultrasonic_max_range_cm: float = 300.0
-    ultrasonic_mount_offset_cm: float = -10.0  # 10cm below camera
 
-    # Wheel geometry (for odometry)
-    wheel_base_cm: float = 22.0                # distance between left/right wheel centers
-    wheel_diameter_cm: float = 6.5             # wheel diameter
-    ticks_per_revolution: int = 20             # encoder ticks (if available)
+    # Wheel geometry (6WD differential)
+    wheel_base_cm: float = 22.0
+    wheel_diameter_cm: float = 6.5
+    ticks_per_revolution: int = 20
+
+    # Camera mount
+    camera_tilt_deg: float = -15.0   # negative = tilted slightly downward
 
 
 @dataclass
 class NovaConfig:
-    """Top-level NOVA configuration."""
     vision: VisionConfig = field(default_factory=VisionConfig)
     navigation: NavigationConfig = field(default_factory=NavigationConfig)
     planner: PlannerConfig = field(default_factory=PlannerConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     hardware: HardwareConfig = field(default_factory=HardwareConfig)
 
-    # Agent behaviour
-    agent_loop_hz: float = 2.0                 # how fast the agent thinks
-    verbose: bool = True                       # print debug info
-    autonomous_enabled: bool = True            # can be disabled for manual-only mode
+    agent_loop_hz: float = 2.0
+    verbose: bool = True
+    autonomous_enabled: bool = True
