@@ -76,9 +76,11 @@ class MockCamera:
             time.sleep(0.1)
 
 
+import threading
+
 class WebcamHelper:
     def __init__(self, device_index=0, resolution=(640, 480)):
-        """Initialize the USB webcam using OpenCV."""
+        """Initialize the USB webcam using OpenCV with a background reading thread."""
         self.device_index = device_index
         self.resolution = resolution
         self.cap = cv2.VideoCapture(self.device_index, cv2.CAP_V4L2)
@@ -86,39 +88,56 @@ class WebcamHelper:
             raise RuntimeError(f"Could not open webcam at index {device_index}")
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+        
+        self.latest_frame = None
+        self.lock = threading.Lock()
+        self.running = True
+        
+        self.thread = threading.Thread(target=self._update_loop, daemon=True)
+        self.thread.start()
+
+    def _update_loop(self):
+        """Background thread that constantly reads from the camera."""
+        while self.running and self.cap.isOpened():
+            success, frame = self.cap.read()
+            if success:
+                with self.lock:
+                    self.latest_frame = frame.copy()
+            else:
+                time.sleep(0.01)
 
     def get_frame(self):
         """Return the latest BGR frame array."""
-        if not self.cap or not self.cap.isOpened():
-            return None
-        try:
-            success, frame = self.cap.read()
-            # cap.read() already returns BGR — no conversion needed.
-            return frame if success else None
-        except Exception:
-            return None
+        with self.lock:
+            if self.latest_frame is not None:
+                return self.latest_frame.copy()
+        return None
 
     def generate_frames(self):
         """Generator that yields JPEG-encoded frames for web streaming."""
-        # NOTE: no finally/self.stop() here — the camera is a shared resource.
-        # Releasing it on stream drop (e.g. browser refresh) would make it
-        # unavailable to the NOVA agent and to the next page load.
-        # Call stop() explicitly on application shutdown only.
         try:
-            while self.cap and self.cap.isOpened():
-                success, frame = self.cap.read()
-                if not success:
+            while self.running:
+                with self.lock:
+                    frame = self.latest_frame
+                if frame is None:
                     time.sleep(0.01)
                     continue
+                
                 success_encode, buffer = cv2.imencode('.jpg', frame)
                 if not success_encode:
+                    time.sleep(0.01)
                     continue
+                    
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                time.sleep(0.03)  # limit stream to ~30fps
         except Exception as e:
             print(f"Webcam streaming error: {e}")
 
     def stop(self):
+        self.running = False
+        if self.thread.is_alive():
+            self.thread.join(timeout=1.0)
         if self.cap:
             self.cap.release()
             print("Webcam resources released.")
