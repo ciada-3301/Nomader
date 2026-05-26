@@ -88,20 +88,20 @@ def execute_drive_command():
                 rover.motor.backward(speed)
             elif command == 'right':
                 print("right")
-                rover.motor.left(speed-100)
+                rover.motor.right(speed-100)
             elif command == 'left':
                 print("left")
-                rover.motor.right(speed-100)
+                rover.motor.left(speed-100)
 
             elif command == 'arc_right_forward':
-                rover.motor.arc_left(speed, bias)
-            elif command == 'arc_left_forward':
                 rover.motor.arc_right(speed, bias)
+            elif command == 'arc_left_forward':
+                rover.motor.arc_left(speed, bias)
 
             elif command == 'arc_right_backward':
-                rover.motor.arc_left(speed, -bias)
-            elif command == 'arc_left_backward':
                 rover.motor.arc_right(speed, -bias)
+            elif command == 'arc_left_backward':
+                rover.motor.arc_left(speed, -bias)
 
             elif command == 'halt':
                 rover.motor.halt()
