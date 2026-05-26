@@ -96,8 +96,7 @@ class HardwareConfig:
     baud_rate: int = 115200
     serial_timeout: float = 1.0
 
-    ultrasonic_enabled: bool = False   # disabled per user preference
-    ultrasonic_max_range_cm: float = 300.0
+
 
     # Wheel geometry (6WD differential)
     wheel_base_cm: float = 22.0
