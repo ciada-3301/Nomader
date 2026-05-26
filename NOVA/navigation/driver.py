@@ -38,8 +38,7 @@ class NavigationDriver:
         left  = int(logical_left  * nav.left_motor_trim)
         right = int(logical_right * nav.right_motor_trim)
         
-        # motor.drive() signature is drive(right, left, turn_bias)
-        self.robot.motor.drive(right, left, 0)
+        self.robot.motor.drive(left, right, 0)
 
     # ── Path control ───────────────────────────────────────────────────────────
 
