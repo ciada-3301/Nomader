@@ -50,8 +50,8 @@ class Robot:
         yaw = max(0, min(180, int(yaw)))
         light = max(0, min(255, int(light)))
         
-        # Format command
-        command = f"{left_speed},{right_speed},{pitch},{yaw},{light}\n"
+        # Format command: Swap right and left to fix physical wiring swap
+        command = f"{right_speed},{left_speed},{pitch},{yaw},{light}\n"
         
         # Send command
         self.serial.write(command.encode('utf-8'))
@@ -129,7 +129,7 @@ class Robot:
             self.robot.right_speed = right_motor_speed if bias >=0 else -right_motor_speed
             self.robot.update()
 
-        def drive(self, right, left, turn_bias):
+        def drive(self, left, right, turn_bias):
             self.robot.left_speed = left
             self.robot.right_speed = right
             self.robot.update()
