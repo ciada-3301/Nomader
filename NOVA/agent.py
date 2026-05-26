@@ -63,7 +63,7 @@ from .memory.memory_store import MemoryStore
 # ── Tool imports ───────────────────────────────────────────────────────────────
 from .tools.base import Tool, ToolResult
 from .tools.navigation import NavigateTo
-from .tools.vision_tools import LockAndTrack
+from .tools.vision_tools import ScanFor
 from .tools.control import DriveRaw, DriveUntilClear, Remember
 from .tools.search_tool import SearchFor
 from .tools.filesystem import ReadFile, WriteFile, ListFiles
@@ -147,7 +147,7 @@ class NovaAgent:
         tools_list = [
             NavigateTo(self),
             SearchFor(self),
-            LockAndTrack(self),
+            ScanFor(self),
             DriveRaw(self),
             DriveUntilClear(self),
             Remember(self),
