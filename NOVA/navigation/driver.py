@@ -10,6 +10,13 @@ which handles per-motor trim correction internally.
 import time
 import math
 from typing import List, Tuple, Optional
+from enum import Enum
+
+class MovementSpeed(Enum):
+    STOPPED = 0
+    SLOW_CRAWL = 1   # ~20% motor power — use during approach and perception
+    NORMAL = 2       # ~60% motor power — use for transit
+    FAST = 3         # ~100% motor power — use only for open-space transit
 
 
 class NavigationDriver:
@@ -24,6 +31,11 @@ class NavigationDriver:
         self.is_navigating:   bool  = False
         self.last_progress_t: float = 0.0
         self.last_dist_goal:  float = 9999.0
+        self.current_speed:   MovementSpeed = MovementSpeed.STOPPED
+
+    def get_current_speed(self) -> MovementSpeed:
+        return self.current_speed
+
 
     # ── Internal motor send ────────────────────────────────────────────────────
 
@@ -38,6 +50,16 @@ class NavigationDriver:
         left  = int(logical_left  * nav.left_motor_trim)
         right = int(logical_right * nav.right_motor_trim)
         
+        max_s = max(abs(logical_left), abs(logical_right))
+        if max_s == 0:
+            self.current_speed = MovementSpeed.STOPPED
+        elif max_s <= nav.min_speed:
+            self.current_speed = MovementSpeed.SLOW_CRAWL
+        elif max_s <= nav.cruise_speed + 30:
+            self.current_speed = MovementSpeed.NORMAL
+        else:
+            self.current_speed = MovementSpeed.FAST
+
         self.robot.motor.drive(left, right, 0)
 
     # ── Path control ───────────────────────────────────────────────────────────
