@@ -7,7 +7,8 @@ langchain-core>=0.2.0
 
 # Computer vision
 opencv-contrib-python>=4.9.0    # NanoTrack requires contrib
-ultralytics>=8.2.0              # YOLOWorld-S
+openvino>=2023.1.0              # Depth Anything inference
+scipy>=1.10.0                   # B-spline path smoothing
 
 # Optional (file tool support)
 pypdf>=4.0.0                    # PDF reading
