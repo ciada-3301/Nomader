@@ -11,6 +11,7 @@ class TargetTracker:
         self.bbox: Optional[List[int]] = None
         self.center: Optional[Tuple[int, int]] = None
         self.confidence = 0.0
+        self.label: Optional[str] = None
         
         self.nano_tracker = None
         self.lk_points = None
@@ -27,8 +28,9 @@ class TargetTracker:
                                    minDistance=7,
                                    blockSize=7)
 
-    def lock(self, bbox: List[int], frame: np.ndarray) -> None:
+    def lock(self, bbox: List[int], frame: np.ndarray, label: Optional[str] = None) -> None:
         """Initializes both LK and NanoTrack on the given bbox."""
+        self.label = label
         if frame is None:
             return
             
@@ -146,6 +148,7 @@ class TargetTracker:
         self.bbox = None
         self.center = None
         self.confidence = 0.0
+        self.label = None
         self.nano_tracker = None
         self.lk_points = None
         self.prev_gray = None
@@ -155,7 +158,8 @@ class TargetTracker:
             "status": self.status,
             "bbox": self.bbox,
             "center": self.center,
-            "confidence": self.confidence
+            "confidence": self.confidence,
+            "label": self.label
         }
 
 # Singleton instance
