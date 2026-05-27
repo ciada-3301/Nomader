@@ -65,15 +65,15 @@ from .tools.base import Tool, ToolResult
 from .tools.navigation import NavigateTo
 from .tools.vision_tools import ScanFor
 from .tools.control import DriveRaw, DriveUntilClear, Remember
-from .tools.search_tool import SearchFor
+# search_for is deprecated in favor of approach_tracked_target
 from .tools.filesystem import ReadFile, WriteFile, ListFiles
 from .tools.comms import Notify, AskUser
 
 # ── New Perception & Skills Tools ──────────────────────────────────────────────
-from .perception.detector import GroundingDetectorTool
 from .perception.tracker import TrackerLockTool, TrackerStatusTool, TrackerReleaseTool
 from .skills.spinsearch import SpinSearch as NewSpinSearch
 from .skills.vlm_grounder import VLMGroundTool, VLMVerifyTool
+from .skills.approach_target import ApproachTrackedTarget
 from .memory.semantic_map import SemanticMapQueryTool
 from .events import global_event_bus, RobotEvent
 
@@ -158,7 +158,6 @@ class NovaAgent:
         # ── Tools ─────────────────────────────────────────────────────────────
         tools_list = [
             NavigateTo(self),
-            SearchFor(self),
             ScanFor(self),
             DriveRaw(self),
             DriveUntilClear(self),
@@ -168,12 +167,12 @@ class NovaAgent:
             ListFiles(self),
             Notify(self),
             AskUser(self),
-            GroundingDetectorTool(self),
             TrackerLockTool(self),
             TrackerStatusTool(self),
             TrackerReleaseTool(self),
             SemanticMapQueryTool(self),
             NewSpinSearch(self),
+            ApproachTrackedTarget(self),
             VLMGroundTool(self),
             VLMVerifyTool(self),
         ]
@@ -595,7 +594,7 @@ RULES:
 1. Use tools to do things. Text responses = thinking aloud only.
 2. When fully done, include {self.DONE_SENTINEL} in your final text response (no more tool calls after).
 3. If a tool fails, adapt — try a different approach, do not give up immediately.
-4. Navigate around obstacles if blocked — call search_for to reorient or drive_raw to back away.
+4. Navigate around obstacles if blocked — call scan_for to reorient or drive_raw to back away.
 5. Use notify to keep the user updated on progress.
 6. ask_user only when you genuinely cannot proceed without human input.
 
@@ -607,10 +606,16 @@ The physical motors are wired correctly — just use the logical directions
 
 ### Tool Selection Priority
 1. Check semantic_map_query FIRST before any detection or VLM call.
-2. Use grounding_detector for concrete object classes (chair, table, cup, person, door).
-3. Use vlm_ground ONLY for abstract spatial regions (foot of X, gap under Y, left side of Z) or when grounding_detector fails.
-4. Use spin_search when the target is not in current camera view.
+2. Use scan_for to search for concrete objects (chair, table, cup, person, door) in the immediate area.
+3. Use vlm_ground ONLY for abstract spatial regions (foot of X, gap under Y, left side of Z) or when scan_for fails.
+4. Use spin_search when the target is not in the current camera view.
 5. Use vlm_verify after every navigation task completion before declaring success.
+
+### Auto-Locking Behavior
+- scan_for and spin_search automatically lock the tracker when they find a target.
+- You do NOT need to call tracker_lock manually after any of these tools succeed.
+- After any detection tool returns success, call approach_tracked_target IMMEDIATELY.
+- Only use tracker_lock manually if you have a bbox from some other source (e.g. vlm_ground).
 
 ### Token Conservation
 - Never call the cloud VLM for a target already in semantic memory (within 60 seconds).
@@ -620,7 +625,6 @@ The physical motors are wired correctly — just use the logical directions
 ### Movement Rules
 - Always switch to slow_crawl before locking tracker or running perception during approach.
 - Never run tracker_update during fast movement.
-- After SpinSearch success, tracker_lock is called automatically — do not call it again manually.
 
 ### Re-acquisition Protocol
 - If tracker_status returns LOST: emit ReacquisitionNeeded event.
@@ -629,12 +633,11 @@ The physical motors are wired correctly — just use the logical directions
 
 ### Task Decomposition Template
 For any navigation task, decompose as:
-1. Identify target (semantic_map_query → grounding_detector → spin_search)
-2. Ground target region (grounding_detector or vlm_ground)
-3. Lock tracker (tracker_lock)
-4. Approach in slow_crawl (move commands)
-5. Verify arrival (vlm_verify)
-6. Emit TaskComplete or TaskStepComplete
+1. Identify target (semantic_map_query → scan_for → spin_search)
+2. If scan_for or spin_search succeeded, tracker is already locked — go to step 3
+3. Approach using approach_tracked_target
+4. Verify arrival (vlm_verify)
+5. Emit TaskComplete or TaskStepComplete
 """
 
     def _build_executor_messages(self, state: NovaState) -> list[BaseMessage]:
