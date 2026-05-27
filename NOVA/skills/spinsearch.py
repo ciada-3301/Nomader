@@ -31,12 +31,10 @@ class SpinSearch(Tool):
         if not self.context.robot or not self.context.camera:
             return ToolResult(success=False, message="Hardware not available.")
 
-        # Ensure we have the detector and tracker
-        from ..perception.detector import get_detector
+        # Ensure we have the tracker
         from ..perception.tracker import get_tracker
         from ..perception.distance import get_distance_for_class
         
-        detector = get_detector()
         tracker = get_tracker()
         nav = self.context.config.navigation
         speed = nav.turn_speed
@@ -54,14 +52,23 @@ class SpinSearch(Tool):
             # Wait for blur to settle
             await asyncio.sleep(0.3)
             
-            # Grab sharpest frame
-            frame = self.context.camera.get_sharpest_frame(downscale_to=(416, 234))
+            # Grab sharpest frame (downscale to tracker resolution to match VLM/Tracker dimensions)
+            frame = self.context.camera.get_sharpest_frame(downscale_to=(640, 360))
             
             if frame is not None:
-                detections = detector.detect(frame, class_names)
-                if detections:
-                    # Found target
-                    best_det = detections[0]
+                best_det = None
+                for class_name in class_names:
+                    # Query cloud VLM for bounding box
+                    bbox = self.context.get_vlm_bounding_box(frame, class_name)
+                    if bbox is not None:
+                        x, y, w, h = bbox
+                        best_det = {
+                            "class": class_name,
+                            "bbox": [x, y, x + w, y + h]
+                        }
+                        break  # Found one of the targets
+
+                if best_det is not None:
                     # Estimate distance if possible
                     dist = get_distance_for_class(best_det['class'], best_det['bbox'][2] - best_det['bbox'][0])
                     
@@ -69,18 +76,15 @@ class SpinSearch(Tool):
                         "found": True,
                         "class_name": best_det['class'],
                         "bbox": best_det['bbox'],
-                        "confidence": best_det['confidence'],
+                        "confidence": 1.0,
                         "estimated_distance": dist
                     }
                     
-                    # Immediately lock tracker on full res frame
+                    # Immediately lock tracker on a fresh tracker-resolution frame
                     full_frame = self.context.camera.get_latest_frame(downscale_to=(640, 360))
                     if full_frame is not None:
-                        # Scale bbox to tracker resolution (416x234 -> 640x360)
-                        sx, sy = 640/416.0, 360/234.0
-                        bx1, by1, bx2, by2 = best_det['bbox']
-                        tracker_bbox = [int(bx1*sx), int(by1*sy), int(bx2*sx), int(by2*sy)]
-                        tracker.lock(tracker_bbox, full_frame)
+                        # bbox is already in 640x360 space, so no scaling is needed
+                        tracker.lock(best_det['bbox'], full_frame, label=best_det['class'])
                         
                     return ToolResult(
                         success=True, 
