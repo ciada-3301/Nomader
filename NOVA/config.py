@@ -24,6 +24,10 @@ class VisionConfig:
     edge_density_threshold: float = 0.08  # fraction of edge pixels that signals an obstacle
     obstacle_width_min_frac: float = 0.10  # obstacle must span >= 10% of frame width
 
+    # Depth Anything V2 configuration
+    depth_model_path: str = "NOVA/models/depth_anything_v2_vits.xml"
+    depth_device: str = "AUTO"  # OpenVINO device: CPU, GPU, or AUTO
+
 
 @dataclass
 class NavigationConfig:
