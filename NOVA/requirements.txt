@@ -6,8 +6,8 @@ langchain-openai>=0.1.0
 langchain-core>=0.2.0
 
 # Computer vision
-opencv-python-headless>=4.9.0   # use headless on Pi (no display)
-ultralytics>=8.0.0              # YOLOv8
+opencv-contrib-python>=4.9.0    # NanoTrack requires contrib
+ultralytics>=8.2.0              # YOLOWorld-S
 
 # Optional (file tool support)
 pypdf>=4.0.0                    # PDF reading
