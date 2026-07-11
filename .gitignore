@@ -1,3 +1,6 @@
 **/__pycache__
 .env
 yolov8s-worldv2.pt
+/my_local_model
+/RL-VLA-JEPA
+/.vscode
